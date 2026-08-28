@@ -1,16 +1,19 @@
 export type PlayerStatus = "available" | "assigned" | "next";
+export type PlayerRole = "Any" | "Attacker" | "Midfield" | "Defense";
 
 export type Player = {
   id: string;
   name: string;
   status: PlayerStatus;
   rating: number;
+  role: PlayerRole;
 };
 
 export type Team = {
   id: string;
   name: string;
   abbreviation: string;
+  colorHue: number;
   capacity: number;
   allowOverflow: boolean;
   playerIds: string[];
@@ -46,6 +49,6 @@ export type Session = {
   overflowMode: OverflowMode;
   positionMode: "none" | "simple" | "specific";
   positionLimitsEnabled: boolean;
-  positionLimits: Record<"Attacker" | "Midfield" | "Defense", number>;
+  positionLimits: Record<"Any" | "Attacker" | "Midfield" | "Defense", number>;
   customWheels: CustomWheel[];
 };

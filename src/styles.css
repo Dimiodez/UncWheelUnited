@@ -75,6 +75,11 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 .team-settings label { display: grid; gap: 5px; color: #817a8e; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .team-settings select { width: 72px; padding: 6px 8px; }
 .team-settings .abbr-input { width: 55px; padding: 6px 8px; text-align: center; font-weight: 800; }
+.team-settings .team-color-control { grid-column: 1 / -1; width: 100%; }
+.team-color-control > span { display: flex; align-items: center; gap: 9px; }
+.team-color-slider { width: 150px; height: 8px; padding: 0; border: 0; border-radius: 999px; appearance: none; background: linear-gradient(90deg, #ff315f, #ffca16, #43e68b, #08bfea, #7c3cff, #e6007e, #ff315f); cursor: pointer; }
+.team-color-slider::-webkit-slider-thumb { width: 16px; height: 16px; border: 2px solid white; border-radius: 50%; appearance: none; background: #0a1730; box-shadow: 0 2px 7px #0008; }
+.team-color-control i { width: 18px; height: 18px; flex: none; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 7px #0008; }
 .team-settings .toggle { grid-column: 1 / -1; display: flex; align-items: center; margin-top: 2px; }
 .roster { min-height: 135px; margin: 0; padding: 0; list-style: none; counter-reset: roster; }
 .roster li { counter-increment: roster; display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid #ffffff0d; font-size: 13px; }
@@ -88,11 +93,15 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 .people-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 18px; }
 .player-editor, .next-panel { padding: 22px; }
 .entry-list { max-height: 320px; overflow: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.entry-row { display: grid; grid-template-columns: 8px 1fr auto auto; align-items: center; gap: 7px; border: 1px solid #ffffff0d; border-radius: 9px; padding: 6px 8px; background: #ffffff04; }
+.entry-row { display: grid; grid-template-columns: 8px minmax(80px, 1fr) auto auto auto; align-items: center; gap: 7px; border: 1px solid #ffffff0d; border-radius: 9px; padding: 6px 8px; background: #ffffff04; }
 .entry-row input { min-width: 0; border: 0; padding: 2px; background: none; }
-.entry-row > span:nth-of-type(2) { font-size: 9px; text-transform: uppercase; color: #716a7a; }
+.entry-row select { width: 88px; padding: 5px 20px 5px 7px; border-radius: 7px; font-size: 10px; color: #d8e3f7; background-color: #07162f; }
+.entry-row > span:nth-of-type(2) { font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.entry-row.available > span:nth-of-type(2) { color: #43e68b; }
+.entry-row.assigned > span:nth-of-type(2) { color: #ff536d; }
+.entry-row.next > span:nth-of-type(2) { color: #ffca16; }
 .entry-row button { color: #807987; background: none; border: 0; font-size: 18px; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #08d6e8; }.entry-row.assigned .status-dot { background: #7c3cff; }.entry-row.next .status-dot { background: #ffca16; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #43e68b; }.entry-row.assigned .status-dot { background: #ff536d; }.entry-row.next .status-dot { background: #ffca16; }
 .player-editor textarea { width: 100%; min-height: 80px; margin-top: 14px; resize: vertical; }
 .input-actions { display: flex; gap: 8px; margin-top: 8px; }
 .input-actions button:first-child { color: white; background: #e6007e; border-color: #ff315f; font-weight: 700; }
@@ -129,11 +138,12 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 .draft-actions button { padding: 11px 14px; border: 0; border-radius: 10px; color: white; background: linear-gradient(135deg, #e6007e, #7c3cff); font-weight: 800; }.draft-actions button.secondary { border: 1px solid #08bfea55; color: #08d6e8; background: #08bfea0b; }
 .draft-actions button.quiet { padding: 6px; color: #8292ad; background: transparent; font-size: 11px; font-weight: 600; }
 .captain-pool { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0; padding: 12px 15px; border: 1px solid #ffca1638; border-radius: 12px; background: #ffca1608; }.captain-pool span { padding: 7px 10px; border: 1px solid #ffca1644; border-radius: 999px; color: #ffca16; background: #09162c; cursor: grab; }.captain-pool em { margin-left: auto; color: #8393ad; font-size: 11px; }
-.draft-order { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 14px 0; padding: 13px 16px; border: 1px solid #ffffff12; border-radius: 12px; background: #09162c; }.draft-order strong { margin-right: 5px; }.draft-order span { padding: 6px 9px; border-radius: 7px; background: #ffffff09; font-size: 12px; }.draft-order em { margin-left: auto; color: #ffca16; font-size: 11px; }
+.draft-order { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 14px 0; padding: 13px 16px; border: 1px solid #ffffff12; border-radius: 12px; background: #09162c; }.draft-order strong { margin-right: 5px; }.draft-order span { padding: 6px 9px; border: 1px solid; border-radius: 7px; background: #ffffff09; font-size: 12px; transition: .2s; }.draft-order span.current { color: white; font-weight: 900; box-shadow: 0 0 16px currentColor; transform: translateY(-1px); }.draft-order em { margin-left: auto; color: #ffca16; font-size: 11px; }
 .draft-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 16px; margin-top: 18px; }
 .draft-player-pool { padding: 18px; border: 1px solid #ffffff14; border-radius: 18px; background: #09162c; }.draft-player-pool::after { content: "Drop here to return a player"; display: block; margin-top: 12px; padding: 12px; border: 1px dashed #08bfea33; border-radius: 9px; text-align: center; color: #617493; font-size: 10px; }.draft-player-pool .section-heading h2 { font-size: 22px; }
 .draft-player { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 9px; margin-bottom: 7px; padding: 9px 10px; border: 1px solid #ffffff12; border-radius: 9px; background: #ffffff05; cursor: grab; }.draft-player:hover { border-color: #08bfea55; }.draft-player label { display: flex; align-items: center; gap: 5px; color: #8292ad; font-size: 9px; text-transform: uppercase; }.draft-player input { width: 55px; padding: 5px; }.draft-player > strong { color: #ffca16; }
 .draft-team-grid { display: grid; grid-template-columns: repeat(2, minmax(250px, 1fr)); gap: 12px; }.draft-team { min-height: 260px; padding: 17px; border: 1px solid #ffffff16; border-top: 3px solid #08bfea; border-radius: 16px; background: #09162c; }.draft-team:nth-child(2) { border-top-color: #e6007e; }.draft-team:nth-child(3) { border-top-color: #ffca16; }.draft-team:nth-child(4) { border-top-color: #05bda7; }
+.draft-team.current-pick { border-color: var(--team-color); box-shadow: 0 0 0 2px var(--team-color), 0 0 30px color-mix(in srgb, var(--team-color) 30%, transparent); }
 .draft-team-head, .captain-row, .budget-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }.draft-team-head h3 { margin: 0; }.draft-team-head label { display: flex; align-items: center; gap: 5px; color: #8292ad; font-size: 9px; text-transform: uppercase; }.draft-team-head select { width: 52px; padding: 4px; }.draft-team-head > span, .captain-row > span { color: #8292ad; font-size: 11px; }.captain-row { margin: 13px 0; padding: 10px 0; border-block: 1px solid #ffffff10; }.captain-row strong { color: #ffca16; }.captain-drop { border: 1px dashed #ffca1633; border-radius: 8px; padding-inline: 8px; }.captain-drop strong { cursor: grab; }
 .budget-row { margin-bottom: 12px; }.budget-row label { color: #8fa2c5; font-size: 11px; }.budget-row input { width: 65px; padding: 5px; }.budget-row > strong { color: #05bda7; }.budget-row > strong.negative { color: #ff315f; }
 .drop-roster { min-height: 125px; padding: 8px; border: 1px dashed #08bfea33; border-radius: 10px; }.drop-roster > div { display: flex; justify-content: space-between; padding: 7px; border-bottom: 1px solid #ffffff0d; cursor: grab; }.drop-roster > div strong { color: #ff809c; }.drop-roster > p { margin: 18px 0 0; text-align: center; color: #52627e; font-size: 11px; }

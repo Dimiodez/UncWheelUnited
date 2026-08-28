@@ -9,7 +9,9 @@ export const abbreviateTeam = (name: string) => {
 
 export const SIMPLE_POSITIONS = ["Attacker", "Midfield", "Defense"];
 export const SPECIFIC_POSITIONS = ["ST", "W", "CAM", "CM", "CDM", "WM", "FB", "CB"];
-export const positionCategory = (position: string): "Attacker" | "Midfield" | "Defense" => {
+export const TEAM_HUES = [348, 265, 47, 173, 197, 24, 319, 225];
+export const positionCategory = (position: string): "Any" | "Attacker" | "Midfield" | "Defense" => {
+  if (position === "Any") return "Any";
   if (["Attacker", "ST", "W", "CAM"].includes(position)) return "Attacker";
   if (["Midfield", "CM", "CDM", "WM"].includes(position)) return "Midfield";
   return "Defense";
@@ -20,15 +22,15 @@ export const sampleSession = (): Session => ({
   players: [
     "Bob", "Joe", "Tom", "Tim", "John", "Mike", "Seth", "Andrew",
     "Caleb", "Marcus", "Jordan", "Chris", "Alex", "Sam", "Luke", "Ryan"
-  ].map((name, index) => ({ id: id(), name, status: "available", rating: 6 + (index % 5) * 0.4 })),
-  teams: ["Red United", "Blue City", "Gold Athletic", "Green Rovers"].map((name) => ({
-    id: id(), name, abbreviation: abbreviateTeam(name), capacity: 4, allowOverflow: true, playerIds: [], budget: 45
+  ].map((name, index) => ({ id: id(), name, status: "available", rating: 6 + (index % 5) * 0.4, role: "Any" as const })),
+  teams: ["Red United", "Blue City", "Gold Athletic", "Green Rovers"].map((name, index) => ({
+    id: id(), name, abbreviation: abbreviateTeam(name), colorHue: TEAM_HUES[index], capacity: 4, allowOverflow: true, playerIds: [], budget: 45
   })),
   assignments: [],
   overflowMode: "prompt",
   positionMode: "none",
   positionLimitsEnabled: false,
-  positionLimits: { Attacker: 2, Midfield: 2, Defense: 2 },
+  positionLimits: { Any: 6, Attacker: 2, Midfield: 2, Defense: 2 },
   customWheels: []
 });
 
@@ -88,20 +90,30 @@ export const rollNext = (
   includeOverflow = false,
   random = Math.random
 ): Session => {
-  const player = chooseRandom(availablePlayers(session), random);
   const positions = session.positionMode === "simple" ? SIMPLE_POSITIONS : session.positionMode === "specific" ? SPECIFIC_POSITIONS : [];
-  const allowedPositionsForTeam = (team: Team) => {
-    if (!session.positionLimitsEnabled || !positions.length) return positions;
+  const allowedPositionsForPlayerAndTeam = (player: Player, team: Team) => {
+    const rolePositions = player.role === "Any"
+      ? ["Any"]
+      : positions.filter((position) => positionCategory(position) === player.role);
+    if (!session.positionLimitsEnabled || !positions.length) return rolePositions;
     const counts = session.assignments.filter((assignment) => assignment.teamId === team.id && assignment.position).reduce<Record<string, number>>((totals, assignment) => {
       const category = positionCategory(assignment.position!);
       totals[category] = (totals[category] || 0) + 1;
       return totals;
     }, {});
-    return positions.filter((position) => (counts[positionCategory(position)] || 0) < session.positionLimits[positionCategory(position)]);
+    return rolePositions.filter((position) => (counts[positionCategory(position)] || 0) < session.positionLimits[positionCategory(position)]);
   };
-  const teams = eligibleTeams(session, includeOverflow).filter((team) => !positions.length || allowedPositionsForTeam(team).length > 0);
+  const baseTeams = eligibleTeams(session, includeOverflow);
+  const players = availablePlayers(session).filter((candidate) => !positions.length || baseTeams.some((team) => allowedPositionsForPlayerAndTeam(candidate, team).length > 0));
+  const specialists = players.filter((candidate) => candidate.role !== "Any");
+  const player = chooseRandom(specialists.length ? specialists : players, random);
+  let teams = player ? baseTeams.filter((team) => !positions.length || allowedPositionsForPlayerAndTeam(player, team).length > 0) : [];
+  if (session.positionLimitsEnabled && teams.length > 1) {
+    const smallestRoster = Math.min(...teams.map((candidate) => candidate.playerIds.length));
+    teams = teams.filter((candidate) => candidate.playerIds.length === smallestRoster);
+  }
   const team = chooseRandom(teams, random);
-  const position = team ? chooseRandom(allowedPositionsForTeam(team), random) : undefined;
+  const position = player && team ? chooseRandom(allowedPositionsForPlayerAndTeam(player, team), random) : undefined;
   const customValues = Object.fromEntries(session.customWheels.flatMap((wheel) => {
     const entries = wheel.removeAfterRoll ? wheel.entries.filter((entry) => !wheel.usedEntries.includes(entry)) : wheel.entries;
     const value = chooseRandom(entries, random);
@@ -149,12 +161,12 @@ export const resetAssignments = (session: Session): Session => ({
 
 export const addPlayer = (session: Session, name: string, status: Player["status"] = "available"): Session => ({
   ...session,
-  players: [...session.players, { id: id(), name: name.trim(), status, rating: 5 }]
+  players: [...session.players, { id: id(), name: name.trim(), status, rating: 5, role: "Any" }]
 });
 
 export const addTeam = (session: Session, name: string, capacity = 4): Session => ({
   ...session,
-  teams: [...session.teams, { id: id(), name: name.trim(), abbreviation: abbreviateTeam(name), capacity, allowOverflow: true, playerIds: [], budget: 45 }]
+  teams: [...session.teams, { id: id(), name: name.trim(), abbreviation: abbreviateTeam(name), colorHue: TEAM_HUES[session.teams.length % TEAM_HUES.length], capacity, allowOverflow: true, playerIds: [], budget: 45 }]
 });
 
 export const playerName = (players: Player[], playerId: string) =>

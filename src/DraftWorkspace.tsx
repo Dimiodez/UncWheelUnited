@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import type { Session } from "./types";
 import { playerName } from "./core/session";
 
@@ -16,16 +16,43 @@ const shuffle = <T,>(items: T[]) => [...items].sort(() => Math.random() - 0.5);
 export default function DraftWorkspace({ mode, session, setSession }: Props) {
   const [draftStyle, setDraftStyle] = useState<"snake" | "standard" | "random">("snake");
   const [draftOrder, setDraftOrder] = useState<string[]>([]);
+  const [draftPickIndex, setDraftPickIndex] = useState(0);
   const [selectedCaptainIds, setSelectedCaptainIds] = useState<string[]>([]);
 
   const unassigned = session.players.filter((player) => !selectedCaptainIds.includes(player.id) && !session.teams.some((team) => team.playerIds.includes(player.id)));
   const roundedCost = (rating: number) => Math.round(rating);
-  const orderLabels = useMemo(() => draftOrder.map((teamId, index) => `${index + 1}. ${session.teams.find((team) => team.id === teamId)?.name ?? "Team"}`), [draftOrder, session.teams]);
+  const draftRound = draftOrder.length ? Math.floor(draftPickIndex / draftOrder.length) : 0;
+  const roundOrder = useMemo(() => draftStyle === "snake" && draftRound % 2 === 1 ? [...draftOrder].reverse() : draftOrder, [draftOrder, draftRound, draftStyle]);
+  const currentTeamId = roundOrder.length ? roundOrder[draftPickIndex % roundOrder.length] : undefined;
+
+  const advanceDraftTurn = (targetTeamId: string, playerWasAdded: boolean) => {
+    if (!playerWasAdded || !draftOrder.length) return;
+    setDraftPickIndex((current) => {
+      let randomRoundOrder = draftOrder;
+      let preparedRandomRound = Math.floor(current / draftOrder.length);
+      for (let offset = 1; offset <= draftOrder.length; offset += 1) {
+        const candidateIndex = current + offset;
+        const round = Math.floor(candidateIndex / draftOrder.length);
+        if (draftStyle === "random" && round > preparedRandomRound) {
+          randomRoundOrder = shuffle(randomRoundOrder);
+          preparedRandomRound = round;
+          setDraftOrder(randomRoundOrder);
+        }
+        const order = draftStyle === "snake" && round % 2 === 1 ? [...draftOrder].reverse() : draftStyle === "random" ? randomRoundOrder : draftOrder;
+        const candidateId = order[candidateIndex % order.length];
+        const candidate = session.teams.find((team) => team.id === candidateId);
+        const projectedSize = candidate ? candidate.playerIds.length + (candidate.id === targetTeamId ? 1 : 0) : 0;
+        if (candidate && projectedSize < candidate.capacity) return candidateIndex;
+      }
+      return current + 1;
+    });
+  };
 
   const movePlayer = (playerId: string, teamId: string) => {
     const target = session.teams.find((team) => team.id === teamId);
     if (!playerId || !target) return;
     const alreadyOnTarget = target.playerIds.includes(playerId);
+    const playerWasUnassigned = !session.teams.some((team) => team.playerIds.includes(playerId));
     if (!alreadyOnTarget && target.playerIds.length >= target.capacity) return;
     setSession((current) => ({
       ...current,
@@ -39,6 +66,7 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
       })),
       assignments: current.assignments.filter((assignment) => assignment.playerId !== playerId)
     }));
+    advanceDraftTurn(teamId, playerWasUnassigned && !alreadyOnTarget);
   };
 
   const returnPlayer = (playerId: string) => {
@@ -92,8 +120,9 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
   };
 
   const createOrder = () => {
-    const base = draftStyle === "standard" ? session.teams.map((team) => team.id) : shuffle(session.teams.map((team) => team.id));
+    const base = shuffle(session.teams.map((team) => team.id));
     setDraftOrder(base);
+    setDraftPickIndex(0);
   };
 
   const resetDraft = () => {
@@ -105,6 +134,7 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
       teams: current.teams.map((team) => ({ ...team, playerIds: [], captainId: undefined }))
     }));
     setDraftOrder([]);
+    setDraftPickIndex(0);
     setSelectedCaptainIds([]);
   };
 
@@ -119,7 +149,7 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
       <div className="draft-actions">
         <button onClick={pickCaptains}>Randomly pick captains</button>
         <label>Draft style
-          <select value={draftStyle} onChange={(event) => setDraftStyle(event.target.value as typeof draftStyle)}>
+          <select value={draftStyle} onChange={(event) => { setDraftStyle(event.target.value as typeof draftStyle); setDraftOrder([]); setDraftPickIndex(0); }}>
             <option value="snake">Snake draft</option>
             <option value="standard">Standard order</option>
             <option value="random">Random order</option>
@@ -132,7 +162,11 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
 
     {selectedCaptainIds.length > 0 && <div className="captain-pool"><strong>Selected captains</strong>{selectedCaptainIds.map((id) => <span draggable onDragStart={(event) => event.dataTransfer.setData("text/player-id", id)} key={id}>{playerName(session.players, id)}</span>)}<em>Click the wheel for random teams, or drag a captain onto a captain slot.</em></div>}
 
-    {orderLabels.length > 0 && <div className="draft-order"><strong>{draftStyle === "snake" ? "Snake draft order" : "Draft order"}</strong>{orderLabels.map((label) => <span key={label}>{label}</span>)}{draftStyle === "snake" && <em>Order reverses every round.</em>}</div>}
+    {roundOrder.length > 0 && <div className="draft-order"><strong>{draftStyle === "snake" ? "Snake draft" : draftStyle === "random" ? "Random draft" : "Standard draft"} · Round {draftRound + 1}</strong>{roundOrder.map((teamId, index) => {
+      const team = session.teams.find((item) => item.id === teamId);
+      const active = teamId === currentTeamId;
+      return <span className={active ? "current" : ""} key={teamId} style={{ borderColor: `hsl(${team?.colorHue ?? 0} 82% 55%)`, background: active ? `hsl(${team?.colorHue ?? 0} 82% 55% / .2)` : undefined }}>{index + 1}. {team?.name ?? "Team"}{active ? " · PICKING" : ""}</span>;
+    })}{draftStyle === "snake" && <em>Order reverses every round.</em>}{draftStyle === "standard" && <em>Same order every round.</em>}{draftStyle === "random" && <em>Fresh random order every round.</em>}</div>}
 
     <div className="draft-layout">
       <aside className="draft-player-pool" onDragOver={(event) => event.preventDefault()} onDrop={(event) => returnPlayer(event.dataTransfer.getData("text/player-id"))}>
@@ -149,7 +183,8 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
           const captain = team.captainId ? session.players.find((player) => player.id === team.captainId) : undefined;
           const spent = team.playerIds.filter((id) => id !== team.captainId).reduce((sum, id) => sum + roundedCost(session.players.find((player) => player.id === id)?.rating ?? 0), 0);
           const balance = team.budget - spent;
-          return <article className="draft-team" key={team.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => movePlayer(event.dataTransfer.getData("text/player-id"), team.id)}>
+          const teamColor = `hsl(${team.colorHue} 82% 55%)`;
+          return <article className={`draft-team ${team.id === currentTeamId ? "current-pick" : ""}`} key={team.id} style={{ borderTopColor: teamColor, "--team-color": teamColor } as CSSProperties} onDragOver={(event) => event.preventDefault()} onDrop={(event) => movePlayer(event.dataTransfer.getData("text/player-id"), team.id)}>
             <div className="draft-team-head"><h3>{team.name}</h3><label>Team size <select value={team.capacity} onChange={(event) => setSession({ ...session, teams: session.teams.map((item) => item.id === team.id ? { ...item, capacity: Number(event.target.value) } : item) })}>{[1,2,3,4,5,6,7,8,9,10,11,12].map((size) => <option key={size}>{size}</option>)}</select></label><span>{team.playerIds.length} / {team.capacity}</span></div>
             <div className="captain-row captain-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); setCaptain(event.dataTransfer.getData("text/player-id"), team.id); }}><span>Captain - drop here</span><strong draggable={Boolean(captain)} onDragStart={(event) => captain && event.dataTransfer.setData("text/player-id", captain.id)}>{captain?.name ?? "Not selected"}</strong></div>
             {mode === "fantasy" && <div className="budget-row">

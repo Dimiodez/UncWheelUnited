@@ -3,7 +3,7 @@ import {
   abbreviateTeam, addPlayer, addTeam, availablePlayers, eligibleTeams, nextPlayers,
   playerName, resetAssignments, rollNext, sampleSession, teamStatus, undoLast
 } from "./core/session";
-import { SIMPLE_POSITIONS, SPECIFIC_POSITIONS } from "./core/session";
+import { SIMPLE_POSITIONS, SPECIFIC_POSITIONS, TEAM_HUES } from "./core/session";
 import type { Session } from "./types";
 import DraftWorkspace from "./DraftWorkspace";
 
@@ -19,10 +19,15 @@ const loadSession = (): Session => {
       ...parsed,
       positionMode: parsed.positionMode || "none",
       positionLimitsEnabled: parsed.positionLimitsEnabled ?? false,
-      positionLimits: parsed.positionLimits || { Attacker: 2, Midfield: 2, Defense: 2 },
+      positionLimits: {
+        Any: parsed.positionLimits?.Any ?? 6,
+        Attacker: parsed.positionLimits?.Attacker ?? 2,
+        Midfield: parsed.positionLimits?.Midfield ?? 2,
+        Defense: parsed.positionLimits?.Defense ?? 2
+      },
       customWheels: parsed.customWheels || [],
-      players: parsed.players.map((player) => ({ ...player, rating: player.rating ?? 5 })),
-      teams: parsed.teams.map((team) => ({ ...team, abbreviation: team.abbreviation || abbreviateTeam(team.name), budget: team.budget ?? 45 }))
+      players: parsed.players.map((player) => ({ ...player, rating: player.rating ?? 5, role: player.role ?? "Any" })),
+      teams: parsed.teams.map((team, index) => ({ ...team, abbreviation: team.abbreviation || abbreviateTeam(team.name), colorHue: team.colorHue ?? TEAM_HUES[index % TEAM_HUES.length], budget: team.budget ?? 45 }))
     };
   } catch {
     return sampleSession();
@@ -49,7 +54,7 @@ export default function App() {
   const waiting = nextPlayers(session);
   const normalTeams = eligibleTeams(session);
   const last = session.assignments.at(-1);
-  const positionEntries = session.positionMode === "simple" ? SIMPLE_POSITIONS : session.positionMode === "specific" ? SPECIFIC_POSITIONS : [];
+  const positionEntries = session.positionMode === "simple" ? [...SIMPLE_POSITIONS, "Any"] : session.positionMode === "specific" ? [...SPECIFIC_POSITIONS, "Any"] : [];
   const assignedCount = session.players.filter((player) => player.status === "assigned").length;
   const totalCapacity = session.teams.reduce((sum, team) => sum + team.capacity, 0);
   const allNormallyFull = normalTeams.length === 0;
@@ -68,9 +73,8 @@ export default function App() {
   }, [wheelSegments]);
 
   const teamWheelBackground = useMemo(() => {
-    const colors = ["#05bda7", "#08bfea", "#ffca16", "#ff6900", "#ff315f", "#e6007e", "#7c3cff", "#4941c9"];
     const size = 100 / Math.max(1, session.teams.length);
-    return `conic-gradient(${session.teams.map((_, index) => `${colors[index % colors.length]} ${index * size}% ${(index + 1) * size}%`).join(",")})`;
+    return `conic-gradient(${session.teams.map((team, index) => `hsl(${team.colorHue} 82% 55%) ${index * size}% ${(index + 1) * size}%`).join(",")})`;
   }, [session.teams]);
 
   const rotationForIndex = (current: number, index: number, count: number) => {
@@ -299,9 +303,9 @@ export default function App() {
         </div>
         <div className="position-limits">
           <label className="limit-toggle"><input type="checkbox" checked={session.positionLimitsEnabled} onChange={(event) => setSession({ ...session, positionLimitsEnabled: event.target.checked })} /> Limit each team</label>
-          {(["Attacker", "Midfield", "Defense"] as const).map((category) => <label key={category}>{category} {category === "Attacker" ? "(ST, W, CAM)" : category === "Midfield" ? "(CM, CDM, WM)" : "(FB, CB)"}
+          {(["Any", "Attacker", "Midfield", "Defense"] as const).map((category) => <label key={category}>{category} {category === "Any" ? "(flexible role)" : category === "Attacker" ? "(ST, W, CAM)" : category === "Midfield" ? "(CM, CDM, WM)" : "(FB, CB)"}
             <select disabled={!session.positionLimitsEnabled} value={session.positionLimits[category]} onChange={(event) => setSession({ ...session, positionLimits: { ...session.positionLimits, [category]: Number(event.target.value) } })}>
-              {[1,2,3,4,5,6].map((limit) => <option key={limit} value={limit}>{limit}</option>)}
+              {[0,1,2,3,4,5,6].map((limit) => <option key={limit} value={limit}>{limit}</option>)}
             </select>
           </label>)}
           <span>{session.positionLimitsEnabled ? "Quotas apply per team" : "Fully random event night"}</span>
@@ -324,7 +328,7 @@ export default function App() {
         <div className="section-heading"><div><p className="eyebrow">LIVE BOARD</p><h2>Team cards</h2></div><span>{session.teams.length} teams</span></div>
         <div className="team-grid">
           {session.teams.map((team, index) => (
-            <article className={`team-card team-${index % 4}`} key={team.id}>
+            <article className={`team-card team-${index % 4}`} key={team.id} style={{ borderTopColor: `hsl(${team.colorHue} 82% 55%)` }}>
               <div className="team-card-head">
                 <input value={team.name} onChange={(event) => updateTeam(team.id, { name: event.target.value })} aria-label="Team name" />
                 <span className={team.playerIds.length > team.capacity ? "over" : ""}>{teamStatus(team)}</span>
@@ -337,6 +341,9 @@ export default function App() {
                   <select value={team.capacity} onChange={(event) => updateTeam(team.id, { capacity: Number(event.target.value) })}>
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((size) => <option key={size}>{size}</option>)}
                   </select>
+                </label>
+                <label className="team-color-control">Team color
+                  <span><input className="team-color-slider" type="range" min="0" max="359" value={team.colorHue} onChange={(event) => updateTeam(team.id, { colorHue: Number(event.target.value) })} aria-label={`${team.name} color hue`} /><i style={{ background: `hsl(${team.colorHue} 82% 55%)` }} /></span>
                 </label>
                 <label className="toggle"><input type="checkbox" checked={team.allowOverflow} onChange={(event) => updateTeam(team.id, { allowOverflow: event.target.checked })} /> overflow</label>
               </div>
@@ -359,12 +366,18 @@ export default function App() {
 
       <section className="people-layout">
         <div className="section-block player-editor">
-          <div className="section-heading"><div><p className="eyebrow">PLAYER PRESET</p><h2>Player wheel entries</h2></div><div className="player-heading-actions"><span>{session.players.length} total</span><button onClick={() => { if (window.confirm("Clear every player and assignment?")) { setDisplayPlayerIds(null); setPlayerRotation(0); setTeamRotation(0); setSession({ ...session, players: [], assignments: [], teams: session.teams.map((team) => ({ ...team, playerIds: [], captainId: undefined })) }); } }}>Clear all players</button></div></div>
+          <div className="section-heading"><div><p className="eyebrow">PLAYER PRESET</p><h2>Player wheel entries</h2></div><div className="player-heading-actions"><span>{session.players.length} total</span>{session.positionMode !== "none" && <button onClick={() => setSession({ ...session, players: session.players.map((player) => ({ ...player, role: "Any" })) })}>Reset roles to Any</button>}<button onClick={() => { if (window.confirm("Clear every player and assignment?")) { setDisplayPlayerIds(null); setPlayerRotation(0); setTeamRotation(0); setSession({ ...session, players: [], assignments: [], teams: session.teams.map((team) => ({ ...team, playerIds: [], captainId: undefined })) }); } }}>Clear all players</button></div></div>
           <div className="entry-list">
             {session.players.map((player) => (
               <div className={`entry-row ${player.status}`} key={player.id}>
                 <span className="status-dot" />
                 <input value={player.name} onChange={(event) => updatePlayer(player.id, event.target.value)} />
+                {session.positionMode !== "none" && <select aria-label={`${player.name} positional role`} value={player.role} onChange={(event) => setSession({ ...session, players: session.players.map((item) => item.id === player.id ? { ...item, role: event.target.value as typeof player.role } : item) })}>
+                  <option value="Any">Any</option>
+                  <option value="Attacker">Attacker</option>
+                  <option value="Midfield">Midfield</option>
+                  <option value="Defense">Defense</option>
+                </select>}
                 <span>{player.status}</span>
                 <button aria-label={`Delete ${player.name}`} disabled={player.status === "assigned"} title={player.status === "assigned" ? "Undo or reset this assignment before deleting" : "Delete player"} onClick={() => setSession({ ...session, players: session.players.filter((item) => item.id !== player.id) })}>×</button>
               </div>
