@@ -177,3 +177,12 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 @media (max-width: 900px) { .entrant-grid { grid-template-columns: repeat(2, 1fr); }.bracket-layout { grid-template-columns: 1fr; }.match-centre { position: static; }.league-playoffs { grid-template-columns: 1fr 1fr; }.league-playoffs > div:first-child { grid-column: 1 / -1; } }
 @media (max-width: 720px) { .group-grid { grid-template-columns: 1fr; }.group-stage-heading { align-items: stretch; flex-direction: column; }.manual-group-layout { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .standings-hero, .entrant-grid, .league-controls, .league-playoffs { grid-template-columns: 1fr; }.standings-hero > div { grid-column: 1; }.league-fixtures { grid-template-columns: 1fr; } }
+
+/* Standings layout refinements */
+.standings-hero { grid-template-columns: minmax(260px, 1fr) 190px 125px 130px 200px; }
+.standings-hero select { width: 100%; min-width: 0; padding: 9px 34px 9px 12px; }
+.league-fixtures { display: grid; grid-template-columns: 1fr; max-height: none; overflow-x: auto; overflow-y: visible; gap: 6px; padding: 2px 0 10px; }
+.league-fixtures > div { grid-template-columns: minmax(140px, 1fr) 34px 12px 34px minmax(140px, 1fr); min-width: 430px; min-height: 32px; gap: 5px; }
+.league-fixtures span { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; font-size: 11px; line-height: 1.25; }
+@media (max-width: 1100px) { .standings-hero { grid-template-columns: 1fr 1fr; }.standings-hero > div { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .standings-hero { grid-template-columns: 1fr; }.standings-hero > div { grid-column: 1; } }
