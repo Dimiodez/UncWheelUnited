@@ -6,6 +6,7 @@ import {
 import { SIMPLE_POSITIONS, SPECIFIC_POSITIONS, TEAM_HUES } from "./core/session";
 import type { Session } from "./types";
 import DraftWorkspace from "./DraftWorkspace";
+import StandingsWorkspace from "./StandingsWorkspace";
 
 const STORAGE_KEY = "uwu.session.v1";
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -46,7 +47,7 @@ export default function App() {
   const [teamRotation, setTeamRotation] = useState(0);
   const [displayPlayerIds, setDisplayPlayerIds] = useState<string[] | null>(null);
   const [message, setMessage] = useState("Ready for the draw.");
-  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy">("cup");
+  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings">("cup");
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(session)), [session]);
 
@@ -236,6 +237,7 @@ export default function App() {
         <button className={activeTab === "cup" ? "active" : ""} onClick={() => setActiveTab("cup")}>Cup Night</button>
         <button className={activeTab === "captain" ? "active" : ""} onClick={() => setActiveTab("captain")}>Captain Draft</button>
         <button className={activeTab === "fantasy" ? "active" : ""} onClick={() => setActiveTab("fantasy")}>Fantasy Value Draft</button>
+        <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Standings</button>
       </nav>
 
       <div className={activeTab === "cup" ? "cup-workspace" : "cup-workspace hidden"}>
@@ -397,7 +399,8 @@ export default function App() {
       </section>
       </div>
 
-      {activeTab !== "cup" && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} />}
+      {(activeTab === "captain" || activeTab === "fantasy") && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} />}
+      {activeTab === "standings" && <StandingsWorkspace />}
     </main>
   );
 }
