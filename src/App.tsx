@@ -7,6 +7,7 @@ import { SIMPLE_POSITIONS, SPECIFIC_POSITIONS, TEAM_HUES } from "./core/session"
 import type { Session } from "./types";
 import DraftWorkspace from "./DraftWorkspace";
 import StandingsWorkspace from "./StandingsWorkspace";
+import CollapsiblePanel from "./CollapsiblePanel";
 
 const STORAGE_KEY = "uwu.session.v1";
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -294,7 +295,8 @@ export default function App() {
         </div>
       </section>
 
-      {session.positionMode !== "none" && <section className="position-panel">
+      {session.positionMode !== "none" && <CollapsiblePanel title="Position wheel settings" eyebrow="OPTIONAL WHEEL" meta={session.positionMode === "simple" ? "Simple positions" : "Specific positions"} className="cup-collapsible">
+      <section className="position-panel">
         <div>
           <p className="eyebrow">{session.positionMode === "simple" ? "SIMPLE POSITION WHEEL" : "SPECIFIC POSITION WHEEL"}</p>
           <h2>{last?.position || "Position awaits"}</h2>
@@ -313,7 +315,8 @@ export default function App() {
           <span>{session.positionLimitsEnabled ? "Quotas apply per team" : "Fully random event night"}</span>
         </div>
         <button onClick={() => setSession({ ...session, positionMode: "none" })}>Remove wheel</button>
-      </section>}
+      </section>
+      </CollapsiblePanel>}
 
       <section className="toolbar-panel">
         <div><span>Preferred spaces</span><strong>{totalCapacity}</strong></div>
@@ -326,8 +329,7 @@ export default function App() {
         </label>
       </section>
 
-      <section className="section-block">
-        <div className="section-heading"><div><p className="eyebrow">LIVE BOARD</p><h2>Team cards</h2></div><span>{session.teams.length} teams</span></div>
+      <CollapsiblePanel title="Team cards" eyebrow="LIVE BOARD" meta={`${session.teams.length} teams`} className="section-block cup-collapsible">
         <div className="team-grid">
           {session.teams.map((team, index) => (
             <article className={`team-card team-${index % 4}`} key={team.id} style={{ borderTopColor: `hsl(${team.colorHue} 82% 55%)` }}>
@@ -364,11 +366,11 @@ export default function App() {
             <button onClick={() => { if (teamInput.trim()) { setSession(addTeam(session, teamInput)); setTeamInput(""); } }}>+ Add custom team</button>
           </article>
         </div>
-      </section>
+      </CollapsiblePanel>
 
       <section className="people-layout">
-        <div className="section-block player-editor">
-          <div className="section-heading"><div><p className="eyebrow">PLAYER PRESET</p><h2>Player wheel entries</h2></div><div className="player-heading-actions"><span>{session.players.length} total</span>{session.positionMode !== "none" && <button onClick={() => setSession({ ...session, players: session.players.map((player) => ({ ...player, role: "Any" })) })}>Reset roles to Any</button>}<button onClick={() => { if (window.confirm("Clear every player and assignment?")) { setDisplayPlayerIds(null); setPlayerRotation(0); setTeamRotation(0); setSession({ ...session, players: [], assignments: [], teams: session.teams.map((team) => ({ ...team, playerIds: [], captainId: undefined })) }); } }}>Clear all players</button></div></div>
+        <CollapsiblePanel title="Player wheel entries" eyebrow="PLAYER PRESET" meta={`${session.players.length} total`} className="section-block player-editor">
+          <div className="player-heading-actions">{session.positionMode !== "none" && <button onClick={() => setSession({ ...session, players: session.players.map((player) => ({ ...player, role: "Any" })) })}>Reset roles to Any</button>}<button onClick={() => { if (window.confirm("Clear every player and assignment?")) { setDisplayPlayerIds(null); setPlayerRotation(0); setTeamRotation(0); setSession({ ...session, players: [], assignments: [], teams: session.teams.map((team) => ({ ...team, playerIds: [], captainId: undefined })) }); } }}>Clear all players</button></div>
           <div className="entry-list">
             {session.players.map((player) => (
               <div className={`entry-row ${player.status}`} key={player.id}>
@@ -387,15 +389,14 @@ export default function App() {
           </div>
           <textarea value={playerInput} onChange={(event) => setPlayerInput(event.target.value)} placeholder="Add one player per line…" />
           <div className="input-actions"><button onClick={() => addNames("available")}>Add to wheel</button><button onClick={() => addNames("next")}>Add late player to Next</button></div>
-        </div>
+        </CollapsiblePanel>
 
-        <aside className="section-block next-panel">
-          <p className="eyebrow">LATE ARRIVALS</p><h2>Next</h2>
+        <CollapsiblePanel title="Next" eyebrow="LATE ARRIVALS" meta={`${waiting.length} waiting`} className="section-block next-panel">
           <p>Players can wait here without restarting the original draw.</p>
           {waiting.length ? waiting.map((player) => (
             <div className="waiting-row" key={player.id}><span>{player.name}</span><button onClick={() => setSession({ ...session, players: session.players.map((item) => item.id === player.id ? { ...item, status: "available" } : item) })}>Make ready</button></div>
           )) : <div className="empty-next">No one waiting</div>}
-        </aside>
+        </CollapsiblePanel>
       </section>
       </div>
 

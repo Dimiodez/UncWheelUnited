@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { createBracket, roundName, setBracketScore } from "./core/bracket";
+import { createBracket, fillBracketScores, roundName, setBracketScore } from "./core/bracket";
 import type { BracketRounds } from "./core/bracket";
 import { calculateGroupStandings, createGroupStage, createGroupStageFromGroups, groupQualifiers, groupStageComplete } from "./core/groupStage";
 import type { GroupStage } from "./core/groupStage";
 import LeaguePhasePanel from "./LeaguePhasePanel";
+import CollapsiblePanel from "./CollapsiblePanel";
 
 const KNOCKOUT_SIZES = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 const GROUP_SIZES = Array.from({ length: 13 }, (_, index) => index + 4);
+const TEST_TOOLS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_TOOLS === "true";
 
 export default function StandingsWorkspace() {
   const [format, setFormat] = useState<"knockout" | "groups" | "league">("knockout");
@@ -16,6 +18,7 @@ export default function StandingsWorkspace() {
   const [groupStage, setGroupStage] = useState<GroupStage | null>(null);
   const [groupCount, setGroupCount] = useState(2);
   const [groupSetup, setGroupSetup] = useState<string[][] | null>(null);
+  const [doubleElimination, setDoubleElimination] = useState(false);
   const [leagueReady, setLeagueReady] = useState(false);
   const [message, setMessage] = useState("Enter every player, then generate the bracket.");
 
@@ -75,14 +78,28 @@ export default function StandingsWorkspace() {
     const assigned = groupSetup.flat();
     const currentNames = names.map((name) => name.trim());
     if (assigned.length !== entrantCount || new Set(assigned).size !== entrantCount || currentNames.some((name) => !assigned.includes(name)) || groupSetup.some((group) => group.length < 2)) return setMessage("Assign everyone exactly once and place at least two players in every group.");
-    setGroupStage(createGroupStageFromGroups(groupSetup));
+    setGroupStage(createGroupStageFromGroups(groupSetup, doubleElimination));
     setRounds([]);
-    setMessage("Group fixtures ready. Each player faces everyone else in their group once.");
+    setMessage(`Group fixtures ready. Each player faces everyone else in their group ${doubleElimination ? "twice" : "once"}.`);
   };
 
   const updateGroupScore = (fixtureId: string, side: "home" | "away", value: string) => setGroupStage((current) => current ? {
     ...current,
     fixtures: current.fixtures.map((fixture) => fixture.id === fixtureId ? { ...fixture, [side === "home" ? "homeScore" : "awayScore"]: value.replace(/\D/g, "") } : fixture)
+  } : current);
+
+  const fillTestNames = () => {
+    setNames(Array.from({ length: entrantCount }, (_, index) => `Test Team ${index + 1}`));
+    setGroupSetup(null);
+    setGroupStage(null);
+    setLeagueReady(false);
+    setRounds([]);
+    setMessage("Test names added. Generate the selected event when ready.");
+  };
+
+  const fillGroupScores = () => setGroupStage((current) => current ? {
+    ...current,
+    fixtures: current.fixtures.map((fixture, index) => ({ ...fixture, homeScore: index % 3 === 0 ? "1" : "3", awayScore: index % 3 === 0 ? "2" : "1" }))
   } : current);
 
   const createKnockoutFromGroups = () => {
@@ -105,23 +122,29 @@ export default function StandingsWorkspace() {
       <button onClick={generate}>{format === "groups" ? "Set up groups" : format === "league" ? "Set up league phase" : "Generate random bracket"}</button>
     </div>
 
-    {groupSetup && !groupStage && <section className="group-draw-board">
-      <div className="group-stage-heading"><div><p className="eyebrow">GROUP DRAW</p><h2>Assign the participants</h2><p>Use the random draw or drag names manually. Groups may have uneven sizes.</p></div><div className="group-draw-actions"><button onClick={randomizeGroupSetup}>Randomly draw groups</button><button disabled={unassignedGroupNames.length > 0 || groupSetup.some((group) => group.length < 2)} onClick={createGroupFixtures}>Create fixtures</button></div></div>
+    {TEST_TOOLS_ENABLED && <aside className="test-tools-panel"><div><strong>Test tools</strong><span>Hidden from normal production builds</span></div><button onClick={fillTestNames}>Fill team names</button>{groupStage && <button onClick={fillGroupScores}>Fill group scores</button>}{rounds.length > 0 && <button onClick={() => setRounds(fillBracketScores(rounds))}>Complete bracket</button>}</aside>}
+
+    {groupSetup && !groupStage && <CollapsiblePanel title="Assign the participants" eyebrow="GROUP DRAW" meta={`${unassignedGroupNames.length} unassigned`} className="standings-collapsible">
+    <section className="group-draw-board">
+      <div className="group-stage-heading"><p>Use the random draw or drag names manually. Groups may have uneven sizes.</p><div className="group-draw-actions"><label className="double-elimination-option"><input type="checkbox" checked={doubleElimination} onChange={(event) => setDoubleElimination(event.target.checked)} />Double elimination</label><button onClick={randomizeGroupSetup}>Randomly draw groups</button><button disabled={unassignedGroupNames.length > 0 || groupSetup.some((group) => group.length < 2)} onClick={createGroupFixtures}>Create fixtures</button></div></div>
       <div className="manual-group-layout"><aside className="group-player-pool" onDragOver={(event) => event.preventDefault()} onDrop={(event) => moveToGroup(event.dataTransfer.getData("text/group-name"), null)}><strong>Unassigned</strong><span>{unassignedGroupNames.length}</span>{unassignedGroupNames.map((name) => <div draggable onDragStart={(event) => event.dataTransfer.setData("text/group-name", name)} key={name}>{name}</div>)}{!unassignedGroupNames.length && <em>Everyone assigned</em>}</aside>
         <div className="manual-groups">{groupSetup.map((group, groupIndex) => <article onDragOver={(event) => event.preventDefault()} onDrop={(event) => moveToGroup(event.dataTransfer.getData("text/group-name"), groupIndex)} key={groupIndex}><h3>Group {String.fromCharCode(65 + groupIndex)} <span>{group.length}</span></h3>{group.map((name) => <div draggable onDragStart={(event) => event.dataTransfer.setData("text/group-name", name)} key={name}>{name}</div>)}{!group.length && <em>Drop players here</em>}</article>)}</div>
       </div>
-    </section>}
+    </section>
+    </CollapsiblePanel>}
 
+    <CollapsiblePanel title="Player/Team names" eyebrow="PARTICIPANTS" meta={`${entrantCount} total`} className="standings-collapsible">
     <div className="entrant-panel">
-      <div className="section-heading"><div><p className="eyebrow">PARTICIPANTS</p><h2>Player/Team names</h2></div><span>{entrantCount} total</span></div>
       <div className="entrant-grid">{names.map((name, index) => <label key={index}><span>{String(index + 1).padStart(2, "0")}</span><input value={name} placeholder={`Player or team ${index + 1}`} onChange={(event) => { setNames(names.map((item, itemIndex) => itemIndex === index ? event.target.value : item)); setGroupSetup(null); setGroupStage(null); setLeagueReady(false); setRounds([]); }} /></label>)}</div>
       <p className="bracket-message">{message}</p>
     </div>
+    </CollapsiblePanel>
 
-    {leagueReady && <LeaguePhasePanel key={names.join("|")} names={names.map((name) => name.trim())} onCreateKnockout={(qualifiers) => { setRounds(createBracket(qualifiers, () => 0.999999)); setMessage("League qualifiers have entered the knockout bracket."); }} />}
+    {leagueReady && <LeaguePhasePanel key={names.join("|")} names={names.map((name) => name.trim())} testToolsEnabled={TEST_TOOLS_ENABLED} onCreateKnockout={(qualifiers) => { setRounds(createBracket(qualifiers, () => 0.999999)); setMessage("League qualifiers have entered the knockout bracket."); }} />}
 
-    {groupStage && <section className="group-stage-board">
-      <div className="group-stage-heading"><div><p className="eyebrow">CLASSIC GROUP STAGE</p><h2>Groups and fixtures</h2><p>3 points for a win · 1 for a draw · ranked by points, goal difference, then goals scored</p></div><button disabled={!groupStageComplete(groupStage)} onClick={createKnockoutFromGroups}>{groupStageComplete(groupStage) ? "Create knockout bracket" : "Complete all group matches"}</button></div>
+    {groupStage && <CollapsiblePanel title="Groups and fixtures" eyebrow="CLASSIC GROUP STAGE" meta={`${groupStage.fixtures.length} fixtures`} className="standings-collapsible">
+    <section className="group-stage-board">
+      <div className="group-stage-heading"><p>3 points for a win · 1 for a draw · ranked by points, goal difference, then goals scored</p><button disabled={!groupStageComplete(groupStage)} onClick={createKnockoutFromGroups}>{groupStageComplete(groupStage) ? "Create knockout bracket" : "Complete all group matches"}</button></div>
       <div className="group-grid">{groupStage.groups.map((group, groupIndex) => {
         const fixtures = groupStage.fixtures.filter((fixture) => fixture.groupIndex === groupIndex);
         const table = calculateGroupStandings(group, fixtures);
@@ -130,9 +153,11 @@ export default function StandingsWorkspace() {
           <div className="group-fixtures">{fixtures.map((fixture) => <div key={fixture.id}><span>{fixture.home}</span><input aria-label={`${fixture.home} score`} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} value={fixture.homeScore} onChange={(event) => updateGroupScore(fixture.id, "home", event.target.value)} /><em>–</em><input aria-label={`${fixture.away} score`} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} value={fixture.awayScore} onChange={(event) => updateGroupScore(fixture.id, "away", event.target.value)} /><span>{fixture.away}</span></div>)}</div>
         </article>;
       })}</div>
-    </section>}
+    </section>
+    </CollapsiblePanel>}
 
-    {rounds.length > 0 && <div className="bracket-layout">
+    {rounds.length > 0 && <CollapsiblePanel title="Knockout bracket" eyebrow="FINAL STAGE" meta={`${rounds.length} rounds`} className="standings-collapsible bracket-collapsible">
+    <div className="bracket-layout">
       <div className="bracket-board">{rounds.map((round, roundIndex) => <div className="bracket-round" key={roundIndex}>
         <h3>{roundName(roundIndex, rounds.length)}</h3>
         <div className="round-matches">{round.map((match, matchIndex) => <article className={`bracket-match ${match.winner ? "complete" : ""}`} key={match.id}>
@@ -145,6 +170,7 @@ export default function StandingsWorkspace() {
       <aside className="match-centre"><p className="eyebrow">MATCH CENTRE</p><h2>{champion ? "Champion" : "Who plays who"}</h2>
         {champion ? <div className="champion-card">🏆 <strong>{champion}</strong></div> : playable.length ? playable.slice(0, 6).map(({ match, roundIndex, matchIndex }) => <div className="upcoming-match" key={match.id}><small>{roundName(roundIndex, rounds.length)} · Match {matchIndex + 1}</small><strong>{match.home}</strong><span>vs</span><strong>{match.away}</strong></div>) : <p>Complete the current scores to reveal the next matchup.</p>}
       </aside>
-    </div>}
+    </div>
+    </CollapsiblePanel>}
   </section>;
 }

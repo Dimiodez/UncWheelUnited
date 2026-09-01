@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateGroupStandings, createGroupStage, groupQualifiers, groupStageComplete } from "./groupStage";
+import { calculateGroupStandings, createGroupStage, createGroupStageFromGroups, groupQualifiers, groupStageComplete } from "./groupStage";
 
 describe("UWU classic group stage", () => {
   it("creates balanced groups of four and one match per pairing", () => {
@@ -27,5 +27,12 @@ describe("UWU classic group stage", () => {
   it("balances an odd number of entrants across a chosen group count", () => {
     const stage = createGroupStage(Array.from({ length: 11 }, (_, index) => `P${index + 1}`), 3, () => 0.99);
     expect(stage.groups.map((group) => group.length)).toEqual([4, 4, 3]);
+  });
+
+  it("creates home-and-away fixtures when double elimination is enabled", () => {
+    const stage = createGroupStageFromGroups([["A", "B", "C"]], true);
+    expect(stage.fixtures).toHaveLength(6);
+    expect(stage.fixtures.filter((fixture) => fixture.home === "A" && fixture.away === "B")).toHaveLength(1);
+    expect(stage.fixtures.filter((fixture) => fixture.home === "B" && fixture.away === "A")).toHaveLength(1);
   });
 });

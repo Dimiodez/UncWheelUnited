@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import type { Session } from "./types";
 import { playerName } from "./core/session";
+import CollapsiblePanel from "./CollapsiblePanel";
 
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
 
@@ -169,15 +170,17 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
     })}{draftStyle === "snake" && <em>Order reverses every round.</em>}{draftStyle === "standard" && <em>Same order every round.</em>}{draftStyle === "random" && <em>Fresh random order every round.</em>}</div>}
 
     <div className="draft-layout">
-      <aside className="draft-player-pool" onDragOver={(event) => event.preventDefault()} onDrop={(event) => returnPlayer(event.dataTransfer.getData("text/player-id"))}>
-        <div className="section-heading"><div><p className="eyebrow">DRAG FROM HERE</p><h2>Available players</h2></div><span>{unassigned.length}</span></div>
+      <CollapsiblePanel title="Available players" eyebrow="DRAG FROM HERE" meta={unassigned.length} className="draft-player-pool">
+        <div className="draft-player-drop-area" onDragOver={(event) => event.preventDefault()} onDrop={(event) => returnPlayer(event.dataTransfer.getData("text/player-id"))}>
         {unassigned.map((player) => <div className="draft-player" draggable onDragStart={(event) => event.dataTransfer.setData("text/player-id", player.id)} key={player.id}>
           <span>{player.name}</span>
           {mode === "fantasy" && <label>Rating <input type="number" min="0" max="10" step="0.1" value={player.rating} onChange={(event) => setSession({ ...session, players: session.players.map((item) => item.id === player.id ? { ...item, rating: Number(event.target.value) } : item) })} /></label>}
           {mode === "fantasy" && <strong>${roundedCost(player.rating)}</strong>}
         </div>)}
-      </aside>
+        </div>
+      </CollapsiblePanel>
 
+      <CollapsiblePanel title="Team rosters" eyebrow="DRAFT BOARD" meta={`${session.teams.length} teams`} className="draft-rosters-panel">
       <div className="draft-team-grid">
         {session.teams.map((team) => {
           const captain = team.captainId ? session.players.find((player) => player.id === team.captainId) : undefined;
@@ -201,6 +204,7 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
           </article>;
         })}
       </div>
+      </CollapsiblePanel>
     </div>
   </section>;
 }

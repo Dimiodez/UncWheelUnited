@@ -33,16 +33,26 @@ const shuffle = <T,>(items: T[], random: () => number) => {
   return copy;
 };
 
-export const createGroupStageFromGroups = (groups: string[][]): GroupStage => {
+export const createGroupStageFromGroups = (groups: string[][], doubleElimination = false): GroupStage => {
   const copiedGroups = groups.map((group) => [...group]);
-  const fixtures = copiedGroups.flatMap((group, groupIndex) => group.flatMap((home, homeIndex) => group.slice(homeIndex + 1).map((away, awayIndex) => ({
-    id: `g${groupIndex}-m${homeIndex}-${homeIndex + awayIndex + 1}`,
-    groupIndex,
-    home,
-    away,
-    homeScore: "",
-    awayScore: ""
-  }))));
+  const fixtures = copiedGroups.flatMap((group, groupIndex) => group.flatMap((home, homeIndex) => group.slice(homeIndex + 1).flatMap((away, awayIndex) => {
+    const pairingId = `${homeIndex}-${homeIndex + awayIndex + 1}`;
+    const firstFixture: GroupFixture = {
+      id: `g${groupIndex}-m${pairingId}-1`,
+      groupIndex,
+      home,
+      away,
+      homeScore: "",
+      awayScore: ""
+    };
+    if (!doubleElimination) return [firstFixture];
+    return [firstFixture, {
+      ...firstFixture,
+      id: `g${groupIndex}-m${pairingId}-2`,
+      home: away,
+      away: home
+    }];
+  })));
   return { groups: copiedGroups, fixtures };
 };
 

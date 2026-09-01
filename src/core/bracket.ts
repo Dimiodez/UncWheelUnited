@@ -18,6 +18,19 @@ const shuffle = <T,>(items: T[], random: () => number) => {
   return copy;
 };
 
+const byeMatchOrder = (matchCount: number) => {
+  const bitCount = Math.log2(matchCount);
+  return Array.from({ length: matchCount }, (_, index) => {
+    let source = index;
+    let reversed = 0;
+    for (let bit = 0; bit < bitCount; bit += 1) {
+      reversed = reversed * 2 + source % 2;
+      source = Math.floor(source / 2);
+    }
+    return reversed;
+  });
+};
+
 const scoreWinner = (match: BracketMatch, allowBye = false) => {
   if (allowBye && match.home && !match.away) return match.home;
   if (!match.home || !match.away || match.homeScore === "" || match.awayScore === "") return null;
@@ -54,8 +67,9 @@ export const createBracket = (names: string[], random = Math.random): BracketRou
   const rounds: BracketRounds = [];
   let cursor = 0;
   const opening: BracketMatch[] = [];
+  const byeMatches = new Set(byeMatchOrder(bracketSize / 2).slice(0, byeCount));
   for (let index = 0; index < bracketSize / 2; index += 1) {
-    const hasBye = index < byeCount;
+    const hasBye = byeMatches.has(index);
     opening.push({
       id: `r0-m${index}`,
       home: entrants[cursor++] ?? null,
@@ -76,6 +90,18 @@ export const setBracketScore = (rounds: BracketRounds, roundIndex: number, match
   const next = rounds.map((round) => round.map((match) => ({ ...match })));
   next[roundIndex][matchIndex][side === "home" ? "homeScore" : "awayScore"] = value;
   return recalculateBracket(next);
+};
+
+export const fillBracketScores = (rounds: BracketRounds): BracketRounds => {
+  let next = rounds;
+  for (let roundIndex = 0; roundIndex < next.length; roundIndex += 1) {
+    for (let matchIndex = 0; matchIndex < next[roundIndex].length; matchIndex += 1) {
+      if (!next[roundIndex][matchIndex].home || !next[roundIndex][matchIndex].away) continue;
+      next = setBracketScore(next, roundIndex, matchIndex, "home", "3");
+      next = setBracketScore(next, roundIndex, matchIndex, "away", "1");
+    }
+  }
+  return next;
 };
 
 export const roundName = (roundIndex: number, roundCount: number) => {
