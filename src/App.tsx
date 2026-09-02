@@ -249,7 +249,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand-mark"><img src={assetUrl("uwu-wheel-logo.png")} alt="UWU wheel logo" /></div>
         <div>
-          <p className="eyebrow">UNC WHEEL UNITED</p>
+          <p className="eyebrow">UNC WHEEL UTILITY</p>
           <h1>Cup Night Draw</h1>
         </div>
         <div className="progress-block">

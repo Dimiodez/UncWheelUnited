@@ -1,4 +1,4 @@
-# Unc Wheel United (UWU)
+# Unc Wheel Utility (UWU)
 
 First-draft test environment for the configurable Cup Night player-to-team draw.
 
