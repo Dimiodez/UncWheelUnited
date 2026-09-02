@@ -43,6 +43,6 @@ pnpm build
 
 ## Optional test tools
 
-The standings workspace shows test-data controls automatically while running `pnpm dev`. To include the same controls in a shared staging build, set `VITE_ENABLE_TEST_TOOLS=true` before building. Normal production builds keep the controls hidden.
+Every workspace shows test-data controls automatically while running `pnpm dev`. Set `VITE_ENABLE_TEST_TOOLS=true` before building to include them in a shared or public build. The current GitHub Pages workflow enables the flag for public viability testing; remove that environment variable from `.github/workflows/deploy-pages.yml` to hide the controls later.
 
 The current environment does not have the Rust toolchain required by Tauri. The React interface and platform-independent assignment engine are ready to place inside a Tauri shell once Rust is installed.

@@ -77,6 +77,7 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 .collapsible-panel .player-heading-actions { justify-content: flex-end; margin-bottom: 12px; }
 .cup-collapsible.section-block { margin-top: 42px; }
 .cup-collapsible .position-panel { margin: 12px 0 0; }
+.bulk-team-size { display: flex; align-items: center; gap: 7px; color: #8fa2c5; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; cursor: default; }.bulk-team-size select { min-width: 112px; padding: 6px 28px 6px 9px; border-radius: 7px; color: #f8f8ff; background-color: #07162f; font-size: 10px; letter-spacing: 0; text-transform: none; cursor: pointer; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 16px; }
 .section-heading h2 { margin: 0; font-size: 27px; }
 .section-heading > span { color: #88818f; font-size: 13px; }

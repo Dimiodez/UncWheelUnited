@@ -8,6 +8,7 @@ import type { Session } from "./types";
 import DraftWorkspace from "./DraftWorkspace";
 import StandingsWorkspace from "./StandingsWorkspace";
 import CollapsiblePanel from "./CollapsiblePanel";
+import { TEST_TOOLS_ENABLED } from "./testTools";
 
 const STORAGE_KEY = "uwu.session.v1";
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -210,6 +211,39 @@ export default function App() {
     setMessage(`${names.length} player${names.length === 1 ? "" : "s"} added${status === "next" ? " to Next" : ""}.`);
   };
 
+  const loadCupTestData = () => {
+    setAutoDrafting(false);
+    setSpinning(false);
+    setDisplayPlayerIds(null);
+    setPlayerRotation(0);
+    setTeamRotation(0);
+    setSession(sampleSession());
+    setMessage("Fresh test players and teams loaded.");
+  };
+
+  const addTestLateArrivals = () => {
+    setSession((current) => ({
+      ...current,
+      players: current.players.map((player, index) => index >= current.players.length - 2 && player.status !== "assigned" ? { ...player, status: "next" } : player)
+    }));
+    setMessage("Two available players moved to Next for late-arrival testing.");
+  };
+
+  const completeTestDraw = () => {
+    setAutoDrafting(false);
+    setSession((current) => {
+      let next: Session = { ...current, overflowMode: "balanced", positionLimitsEnabled: false };
+      let guard = Math.max(1, next.players.length * 2);
+      while (availablePlayers(next).length > 0 && guard-- > 0) {
+        const rolled = rollNext(next, true, () => 0);
+        if (rolled.assignments.length === next.assignments.length) break;
+        next = rolled;
+      }
+      return next;
+    });
+    setMessage("Test draw completed with every eligible player assigned.");
+  };
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -295,6 +329,8 @@ export default function App() {
         </div>
       </section>
 
+      {TEST_TOOLS_ENABLED && <aside className="test-tools-panel"><div><strong>Cup Night test tools</strong><span>Temporary viability-testing controls</span></div><button onClick={loadCupTestData}>Load sample setup</button><button onClick={addTestLateArrivals}>Add late arrivals</button><button onClick={completeTestDraw}>Complete draw</button></aside>}
+
       {session.positionMode !== "none" && <CollapsiblePanel title="Position wheel settings" eyebrow="OPTIONAL WHEEL" meta={session.positionMode === "simple" ? "Simple positions" : "Specific positions"} className="cup-collapsible">
       <section className="position-panel">
         <div>
@@ -329,7 +365,7 @@ export default function App() {
         </label>
       </section>
 
-      <CollapsiblePanel title="Team cards" eyebrow="LIVE BOARD" meta={`${session.teams.length} teams`} className="section-block cup-collapsible">
+      <CollapsiblePanel title="Team cards" eyebrow="LIVE BOARD" meta={<><label className="bulk-team-size" onClick={(event) => event.stopPropagation()}>All teams<select aria-label="Set all team sizes" value="" onClick={(event) => event.stopPropagation()} onChange={(event) => { const capacity = Number(event.target.value); if (capacity) setSession((current) => ({ ...current, teams: current.teams.map((team) => ({ ...team, capacity })) })); }}><option value="">Set size…</option>{Array.from({ length: 12 }, (_, index) => index + 1).map((size) => <option value={size} key={size}>{size} players</option>)}</select></label><span>{session.teams.length} teams</span></>} className="section-block cup-collapsible">
         <div className="team-grid">
           {session.teams.map((team, index) => (
             <article className={`team-card team-${index % 4}`} key={team.id} style={{ borderTopColor: `hsl(${team.colorHue} 82% 55%)` }}>
@@ -400,7 +436,7 @@ export default function App() {
       </section>
       </div>
 
-      {(activeTab === "captain" || activeTab === "fantasy") && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} />}
+      {(activeTab === "captain" || activeTab === "fantasy") && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} testToolsEnabled={TEST_TOOLS_ENABLED} />}
       {activeTab === "standings" && <StandingsWorkspace />}
     </main>
   );

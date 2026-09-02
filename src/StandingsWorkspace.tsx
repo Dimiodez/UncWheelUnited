@@ -5,10 +5,10 @@ import { calculateGroupStandings, createGroupStage, createGroupStageFromGroups, 
 import type { GroupStage } from "./core/groupStage";
 import LeaguePhasePanel from "./LeaguePhasePanel";
 import CollapsiblePanel from "./CollapsiblePanel";
+import { TEST_TOOLS_ENABLED } from "./testTools";
 
 const KNOCKOUT_SIZES = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 const GROUP_SIZES = Array.from({ length: 13 }, (_, index) => index + 4);
-const TEST_TOOLS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_TEST_TOOLS === "true";
 
 export default function StandingsWorkspace() {
   const [format, setFormat] = useState<"knockout" | "groups" | "league">("knockout");
@@ -122,7 +122,7 @@ export default function StandingsWorkspace() {
       <button onClick={generate}>{format === "groups" ? "Set up groups" : format === "league" ? "Set up league phase" : "Generate random bracket"}</button>
     </div>
 
-    {TEST_TOOLS_ENABLED && <aside className="test-tools-panel"><div><strong>Test tools</strong><span>Hidden from normal production builds</span></div><button onClick={fillTestNames}>Fill team names</button>{groupStage && <button onClick={fillGroupScores}>Fill group scores</button>}{rounds.length > 0 && <button onClick={() => setRounds(fillBracketScores(rounds))}>Complete bracket</button>}</aside>}
+    {TEST_TOOLS_ENABLED && <aside className="test-tools-panel"><div><strong>Test tools</strong><span>Temporary viability-testing controls</span></div><button onClick={fillTestNames}>Fill team names</button>{groupStage && <button onClick={fillGroupScores}>Fill group scores</button>}{rounds.length > 0 && <button onClick={() => setRounds(fillBracketScores(rounds))}>Complete bracket</button>}</aside>}
 
     {groupSetup && !groupStage && <CollapsiblePanel title="Assign the participants" eyebrow="GROUP DRAW" meta={`${unassignedGroupNames.length} unassigned`} className="standings-collapsible">
     <section className="group-draw-board">

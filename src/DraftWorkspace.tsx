@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import type { Session } from "./types";
-import { playerName } from "./core/session";
+import { playerName, sampleSession } from "./core/session";
 import CollapsiblePanel from "./CollapsiblePanel";
 
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -10,11 +10,12 @@ type Props = {
   mode: "captain" | "fantasy";
   session: Session;
   setSession: Dispatch<SetStateAction<Session>>;
+  testToolsEnabled?: boolean;
 };
 
 const shuffle = <T,>(items: T[]) => [...items].sort(() => Math.random() - 0.5);
 
-export default function DraftWorkspace({ mode, session, setSession }: Props) {
+export default function DraftWorkspace({ mode, session, setSession, testToolsEnabled = false }: Props) {
   const [draftStyle, setDraftStyle] = useState<"snake" | "standard" | "random">("snake");
   const [draftOrder, setDraftOrder] = useState<string[]>([]);
   const [draftPickIndex, setDraftPickIndex] = useState(0);
@@ -139,6 +140,52 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
     setSelectedCaptainIds([]);
   };
 
+  const loadTestDraft = () => {
+    setSession(sampleSession());
+    setDraftOrder([]);
+    setDraftPickIndex(0);
+    setSelectedCaptainIds([]);
+  };
+
+  const setUpTestDraft = () => {
+    if (!session.teams.length || session.players.length < session.teams.length) return;
+    const captainIds = session.players.slice(0, session.teams.length).map((player) => player.id);
+    setSelectedCaptainIds(captainIds);
+    setDraftOrder(session.teams.map((team) => team.id));
+    setDraftPickIndex(0);
+    setSession((current) => ({
+      ...current,
+      assignments: [],
+      players: current.players.map((player) => ({ ...player, status: captainIds.includes(player.id) ? "assigned" : "available" })),
+      teams: current.teams.map((team, index) => ({ ...team, captainId: captainIds[index], playerIds: [captainIds[index]] }))
+    }));
+  };
+
+  const fillTestRosters = () => {
+    if (!session.teams.length || session.players.length < session.teams.length) return;
+    const captainIds = session.players.slice(0, session.teams.length).map((player) => player.id);
+    const rosterIds = session.teams.map((_, index) => [captainIds[index]]);
+    session.players.slice(session.teams.length).forEach((player, playerIndex) => {
+      for (let offset = 0; offset < session.teams.length; offset += 1) {
+        const teamIndex = (playerIndex + offset) % session.teams.length;
+        if (rosterIds[teamIndex].length < session.teams[teamIndex].capacity) {
+          rosterIds[teamIndex].push(player.id);
+          break;
+        }
+      }
+    });
+    const assignedIds = new Set(rosterIds.flat());
+    setSelectedCaptainIds(captainIds);
+    setDraftOrder(session.teams.map((team) => team.id));
+    setDraftPickIndex(Math.max(0, assignedIds.size - captainIds.length));
+    setSession((current) => ({
+      ...current,
+      assignments: [],
+      players: current.players.map((player) => ({ ...player, status: assignedIds.has(player.id) ? "assigned" : "available" })),
+      teams: current.teams.map((team, index) => ({ ...team, captainId: captainIds[index], playerIds: rosterIds[index] }))
+    }));
+  };
+
   return <section className="draft-workspace">
     <div className="draft-hero">
       <div>
@@ -160,6 +207,8 @@ export default function DraftWorkspace({ mode, session, setSession }: Props) {
         <button className="quiet" onClick={resetDraft}>Reset draft pool</button>
       </div>
     </div>
+
+    {testToolsEnabled && <aside className="test-tools-panel"><div><strong>{mode === "captain" ? "Captain Draft" : "Fantasy Draft"} test tools</strong><span>Temporary viability-testing controls</span></div><button onClick={loadTestDraft}>Load sample setup</button><button onClick={setUpTestDraft}>Set up captains</button><button onClick={fillTestRosters}>Fill team rosters</button></aside>}
 
     {selectedCaptainIds.length > 0 && <div className="captain-pool"><strong>Selected captains</strong>{selectedCaptainIds.map((id) => <span draggable onDragStart={(event) => event.dataTransfer.setData("text/player-id", id)} key={id}>{playerName(session.players, id)}</span>)}<em>Click the wheel for random teams, or drag a captain onto a captain slot.</em></div>}
 

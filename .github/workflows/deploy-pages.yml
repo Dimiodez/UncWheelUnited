@@ -43,6 +43,9 @@ jobs:
 
       - name: Build web app
         run: pnpm build
+        env:
+          # Remove this line when public viability testing is complete.
+          VITE_ENABLE_TEST_TOOLS: "true"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
