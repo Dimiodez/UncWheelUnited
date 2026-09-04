@@ -4,7 +4,10 @@ import type { BracketRounds } from "./core/bracket";
 import { calculateGroupStandings, createGroupStage, createGroupStageFromGroups, groupQualifiers, groupStageComplete, qualificationSlots } from "./core/groupStage";
 import type { GroupStage } from "./core/groupStage";
 import LeaguePhasePanel from "./LeaguePhasePanel";
+import type { LeaguePhaseSnapshot } from "./LeaguePhasePanel";
 import CollapsiblePanel from "./CollapsiblePanel";
+import CompetitionSavePanel from "./CompetitionSavePanel";
+import type { SavedCompetition } from "./CompetitionSavePanel";
 import { TEST_TOOLS_ENABLED } from "./testTools";
 
 const KNOCKOUT_SIZES = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -22,6 +25,8 @@ export default function StandingsWorkspace() {
   const [qualifiersPerGroup, setQualifiersPerGroup] = useState(2);
   const [crossoverSeeding, setCrossoverSeeding] = useState(true);
   const [leagueReady, setLeagueReady] = useState(false);
+  const [leagueSnapshot, setLeagueSnapshot] = useState<LeaguePhaseSnapshot | null>(null);
+  const [leagueRevision, setLeagueRevision] = useState(0);
   const [message, setMessage] = useState("Enter every player, then generate the bracket.");
 
   const resizeEntrants = (count: number) => {
@@ -118,8 +123,20 @@ export default function StandingsWorkspace() {
   const qualificationPlan = format === "groups" ? qualificationSlots(groupCount, qualifiersPerGroup, crossoverSeeding) : [];
   const qualificationMatches = Array.from({ length: Math.floor(qualificationPlan.length / 2) }, (_, index) => [qualificationPlan[index * 2], qualificationPlan[index * 2 + 1]]);
   const estimatedGamesEach = Math.max(0, Math.floor(entrantCount / groupCount) - 1) * (doubleElimination ? 2 : 1);
+  const snapshot = { kind: "competition", format, entrantCount, names, rounds, groupStage, groupCount, groupSetup, doubleElimination, qualifiersPerGroup, crossoverSeeding, leagueReady, leagueSnapshot };
+  const loadCompetition = (saved: SavedCompetition) => {
+    const data = saved.snapshot as typeof snapshot;
+    if (data.kind !== "competition") return;
+    setFormat(data.format); setEntrantCount(data.entrantCount); setNames(data.names); setRounds(data.rounds || []);
+    setGroupStage(data.groupStage || null); setGroupCount(data.groupCount || 2); setGroupSetup(data.groupSetup || null);
+    setDoubleElimination(Boolean(data.doubleElimination)); setQualifiersPerGroup(data.qualifiersPerGroup || 2);
+    setCrossoverSeeding(data.crossoverSeeding ?? true); setLeagueReady(Boolean(data.leagueReady));
+    setLeagueSnapshot(data.leagueSnapshot || null); setLeagueRevision(current => current + 1);
+    setMessage(`Loaded “${saved.title}”. Team names and results remain editable.`);
+  };
 
   return <section className="standings-workspace">
+    <CompetitionSavePanel format={format} snapshot={snapshot} onLoad={loadCompetition} />
     <div className="standings-hero">
       <div><p className="eyebrow">OFFICIAL + COMMUNITY EVENTS</p><h2>Competition Builder</h2><p>Control groups, fixtures, qualification, and knockout advancement before results begin.</p></div>
       <label>Format<select value={format} onChange={(event) => changeFormat(event.target.value as typeof format)}><option value="knockout">Knockout bracket</option><option value="groups">Groups → knockout</option><option value="league">League phase → knockout</option></select></label>
@@ -153,7 +170,7 @@ export default function StandingsWorkspace() {
     </div>
     </CollapsiblePanel>
 
-    {leagueReady && <LeaguePhasePanel key={names.join("|")} names={names.map((name) => name.trim())} testToolsEnabled={TEST_TOOLS_ENABLED} onCreateKnockout={(qualifiers) => { setRounds(createBracket(qualifiers, () => 0.999999)); setMessage("League qualifiers have entered the knockout bracket."); }} />}
+    {leagueReady && <LeaguePhasePanel key={`${names.join("|")}-${leagueRevision}`} names={names.map((name) => name.trim())} initialState={leagueSnapshot} onChange={setLeagueSnapshot} testToolsEnabled={TEST_TOOLS_ENABLED} onCreateKnockout={(qualifiers) => { setRounds(createBracket(qualifiers, () => 0.999999)); setMessage("League qualifiers have entered the knockout bracket."); }} />}
 
     {groupStage && <CollapsiblePanel title="Groups and fixtures" eyebrow="CLASSIC GROUP STAGE" meta={`${groupStage.fixtures.length} fixtures`} className="standings-collapsible">
     <section className="group-stage-board">

@@ -1,23 +1,28 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { calculateLeagueTable, createLeagueFixtures, leagueComplete, validGameCounts } from "./core/leaguePhase";
 import type { LeagueFixture } from "./core/leaguePhase";
 import CollapsiblePanel from "./CollapsiblePanel";
 
 type PlayoffMatch = { id: string; home: string; away: string; homeScore: string; awayScore: string; winner: string | null };
+export type LeaguePhaseSnapshot = { gamesPerPlayer: number; directPlaces: number; playoffPlaces: number; fixtures: LeagueFixture[]; playoffs: PlayoffMatch[] };
 
 type Props = {
   names: string[];
   onCreateKnockout: (qualifiers: string[]) => void;
   testToolsEnabled?: boolean;
+  initialState?: LeaguePhaseSnapshot | null;
+  onChange?: (snapshot: LeaguePhaseSnapshot) => void;
 };
 
-export default function LeaguePhasePanel({ names, onCreateKnockout, testToolsEnabled = false }: Props) {
+export default function LeaguePhasePanel({ names, onCreateKnockout, testToolsEnabled = false, initialState, onChange }: Props) {
   const gameOptions = validGameCounts(names.length);
-  const [gamesPerPlayer, setGamesPerPlayer] = useState(gameOptions[Math.min(3, gameOptions.length - 1)]);
-  const [directPlaces, setDirectPlaces] = useState(2);
-  const [playoffPlaces, setPlayoffPlaces] = useState(Math.min(4, names.length - 2));
-  const [fixtures, setFixtures] = useState<LeagueFixture[]>([]);
-  const [playoffs, setPlayoffs] = useState<PlayoffMatch[]>([]);
+  const [gamesPerPlayer, setGamesPerPlayer] = useState(initialState?.gamesPerPlayer ?? gameOptions[Math.min(3, gameOptions.length - 1)]);
+  const [directPlaces, setDirectPlaces] = useState(initialState?.directPlaces ?? 2);
+  const [playoffPlaces, setPlayoffPlaces] = useState(initialState?.playoffPlaces ?? Math.min(4, names.length - 2));
+  const [fixtures, setFixtures] = useState<LeagueFixture[]>(initialState?.fixtures ?? []);
+  const [playoffs, setPlayoffs] = useState<PlayoffMatch[]>(initialState?.playoffs ?? []);
+
+  useEffect(() => onChange?.({ gamesPerPlayer, directPlaces, playoffPlaces, fixtures, playoffs }), [gamesPerPlayer, directPlaces, playoffPlaces, fixtures, playoffs, onChange]);
 
   const table = useMemo(() => calculateLeagueTable(names, fixtures), [names, fixtures]);
   const placementOptions = [0, 2, 4, 6, 8, 10, 12];

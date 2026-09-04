@@ -8,6 +8,8 @@ import type { Session } from "./types";
 import DraftWorkspace from "./DraftWorkspace";
 import StandingsWorkspace from "./StandingsWorkspace";
 import CollapsiblePanel from "./CollapsiblePanel";
+import CompetitionSavePanel from "./CompetitionSavePanel";
+import type { SavedCompetition } from "./CompetitionSavePanel";
 import { TEST_TOOLS_ENABLED } from "./testTools";
 
 const STORAGE_KEY = "uwu.session.v1";
@@ -274,6 +276,16 @@ export default function App() {
         <button className={activeTab === "fantasy" ? "active" : ""} onClick={() => setActiveTab("fantasy")}>Fantasy Value Draft</button>
         <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Standings</button>
       </nav>
+
+      {activeTab !== "standings" && <CompetitionSavePanel
+        format={activeTab === "cup" ? "wheel-draw" : activeTab === "captain" ? "captain-draft" : "fantasy-draft"}
+        snapshot={{ kind: "draw", activeTab, session }}
+        onLoad={(saved: SavedCompetition) => {
+          const loaded = saved.snapshot as { session?: Session; activeTab?: typeof activeTab };
+          if (loaded.session) setSession(loaded.session);
+          if (loaded.activeTab) setActiveTab(loaded.activeTab);
+        }}
+      />}
 
       <div className={activeTab === "cup" ? "cup-workspace" : "cup-workspace hidden"}>
 
