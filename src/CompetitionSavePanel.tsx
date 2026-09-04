@@ -86,10 +86,24 @@ export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props
       setMessage(status === "published" ? `Published to ${destination === "league-cup" ? "League Cup" : "Community Events"}. You can continue editing and republish.` : "Draft saved. You can reload and edit it anytime.");
       await refresh();
     } catch (error) {
+      if (status === "published") {
+        setMessage(`${error instanceof Error ? error.message : "Publishing failed."} Sign in to UncFutbolLeague.com with an owner/admin account, then publish again.`);
+        return;
+      }
       const next = [item, ...readLocal().filter(saved => saved.id !== item.id)];
       localStorage.setItem(LOCAL_KEY, JSON.stringify(next)); setEvents(next); setSelectedId(item.id);
       setMessage(`${error instanceof Error ? error.message : "Server unavailable."} Saved in this browser as a local draft; sign in as owner/admin to publish.`);
     }
+  };
+
+  const remove = async () => {
+    if (!selectedId || !window.confirm("Remove this saved event and take it off the public schedule?")) return;
+    try {
+      const response = await fetch(`/api/admin/events?id=${encodeURIComponent(selectedId)}`, { method: "DELETE", credentials: "same-origin" });
+      if (!response.ok) throw new Error("Only a signed-in owner/admin can remove a published event.");
+      setEvents(current => current.filter(item => item.id !== selectedId)); setSelectedId(""); setTitle("");
+      setMessage("Event removed from saved events and the public schedule.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to remove event."); }
   };
 
   const load = () => {
@@ -98,13 +112,13 @@ export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props
   };
 
   return <section className="competition-save-panel">
-    <div><p className="eyebrow">SAVE + PUBLISH</p><h2>Event control room</h2><p>{message}</p></div>
+    <div><p className="eyebrow">SAVE + PUBLISH</p><h2>Event control room</h2><p>{message}</p><a className="owner-sign-in" href="/account" target="_top">Owner/admin sign-in</a></div>
     <label>Saved events<select value={selectedId} onChange={event => choose(event.target.value)}><option value="">New event…</option>{events.map(item => <option value={item.id} key={item.id}>{item.status === "published" ? "●" : "○"} {item.title}</option>)}</select></label>
     <button disabled={!selectedId} onClick={load}>Load selected</button>
     <label>Event name<input value={title} onChange={event => setTitle(event.target.value)} placeholder="Friday Night Cup" /></label>
     <label>Date and kickoff<input type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label>
     <label>Entered timezone<select value={timeZone} onChange={event => setTimeZone(event.target.value)}>{ZONES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <label>Publish to<select value={destination} onChange={event => setDestination(event.target.value as SavedCompetition["destination"])}><option value="community-events">Community Events</option><option value="league-cup">League Cup</option></select></label>
-    <div className="save-actions"><button onClick={() => void save("draft")}>Save draft</button><button className="publish-button" onClick={() => void save("published")}>Save + publish</button></div>
+    <div className="save-actions"><button onClick={() => void save("draft")}>Save draft</button><button className="publish-button" onClick={() => void save("published")}>{events.find(item => item.id === selectedId)?.status === "published" ? "Update published" : "Save + publish"}</button>{selectedId && <button className="remove-event-button" onClick={() => void remove()}>Remove</button>}</div>
   </section>;
 }
