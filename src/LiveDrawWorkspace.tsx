@@ -62,7 +62,7 @@ export default function LiveDrawWorkspace() {
     <section className="draw-ceremony">
       <div className="ceremony-lights"/><div className="ceremony-heading"><p className="eyebrow">LIVE CEREMONY</p><h2>Champions Draw</h2><p>Every click opens one ballot and places that club into its group.</p></div>
       <div className="ceremony-stage">
-        <div className={`ballot-bowl ${drawing?"drawing":""}`}><button onClick={draw} disabled={!started||drawing||!remaining.length} aria-label="Draw the next team"><span className="bowl-rim"/>{Array.from({length:12},(_,i)=><i key={i} style={{"--ball":i} as CSSProperties}/>) }<strong>{remaining.length}</strong><small>ballots remain</small></button></div>
+        <div className={`ballot-bowl ${drawing?"drawing":""}`}><button onClick={draw} disabled={!started||drawing||!remaining.length} aria-label="Draw the next team"><span className="bowl-rim"/>{Array.from({length:12},(_,i)=><i key={i} style={{"--ball":i} as CSSProperties}/>) }<span className="bowl-label">Click the bowl to draw</span><span className="ballot-count"><strong>{remaining.length}</strong><small>ballots remain</small></span></button></div>
         <div className={`draw-reveal ${drawing?"active":""} ${revealed?"revealed":""}`}><span>{drawing&&!revealed?"OPENING BALLOT":revealed?"DRAWN CLUB":"THE NEXT CLUB"}</span><h3>{drawing&&!revealed?"…":revealed||"Awaits the draw"}</h3>{targetGroup!==null&&<strong>GROUP {String.fromCharCode(65+targetGroup)}</strong>}</div>
         <div className="ceremony-controls"><button onClick={begin} disabled={drawing}>{started?"Restart ceremony":"Begin ceremony"}</button><button onClick={reset} disabled={drawing}>Reset</button><p>{message}</p></div>
       </div>
