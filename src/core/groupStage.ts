@@ -83,9 +83,18 @@ export const calculateGroupStandings = (group: string[], fixtures: GroupFixture[
   return [...table.values()].map((row) => ({ ...row, goalDifference: row.goalsFor - row.goalsAgainst })).sort((a, b) => b.points - a.points || b.goalDifference - a.goalDifference || b.goalsFor - a.goalsFor || a.name.localeCompare(b.name));
 };
 
-export const groupQualifiers = (stage: GroupStage) => {
+export const qualificationSlots = (groupCount: number, qualifiersPerGroup = 2, crossover = true) => {
+  const places = Math.max(1, Math.min(2, qualifiersPerGroup));
+  if (places === 1) return Array.from({ length: groupCount }, (_, groupIndex) => ({ groupIndex, position: 0 }));
+  if (!crossover) return Array.from({ length: groupCount }, (_, groupIndex) => [
+    { groupIndex, position: 0 }, { groupIndex, position: 1 }
+  ]).flat();
+  return Array.from({ length: groupCount }, (_, groupIndex) => [
+    { groupIndex, position: 0 }, { groupIndex: (groupIndex + 1) % groupCount, position: 1 }
+  ]).flat();
+};
+
+export const groupQualifiers = (stage: GroupStage, qualifiersPerGroup = 2, crossover = true) => {
   const ranked = stage.groups.map((group, groupIndex) => calculateGroupStandings(group, stage.fixtures.filter((fixture) => fixture.groupIndex === groupIndex)));
-  const winners = ranked.map((table) => table[0].name);
-  const runnersUp = ranked.map((table) => table[1].name);
-  return winners.flatMap((winner, index) => [winner, runnersUp[(index + 1) % runnersUp.length]]);
+  return qualificationSlots(stage.groups.length, qualifiersPerGroup, crossover).map(slot => ranked[slot.groupIndex][slot.position].name);
 };

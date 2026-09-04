@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createBracket, fillBracketScores, roundName, setBracketScore } from "./core/bracket";
 import type { BracketRounds } from "./core/bracket";
-import { calculateGroupStandings, createGroupStage, createGroupStageFromGroups, groupQualifiers, groupStageComplete } from "./core/groupStage";
+import { calculateGroupStandings, createGroupStage, createGroupStageFromGroups, groupQualifiers, groupStageComplete, qualificationSlots } from "./core/groupStage";
 import type { GroupStage } from "./core/groupStage";
 import LeaguePhasePanel from "./LeaguePhasePanel";
 import CollapsiblePanel from "./CollapsiblePanel";
@@ -19,6 +19,8 @@ export default function StandingsWorkspace() {
   const [groupCount, setGroupCount] = useState(2);
   const [groupSetup, setGroupSetup] = useState<string[][] | null>(null);
   const [doubleElimination, setDoubleElimination] = useState(false);
+  const [qualifiersPerGroup, setQualifiersPerGroup] = useState(2);
+  const [crossoverSeeding, setCrossoverSeeding] = useState(true);
   const [leagueReady, setLeagueReady] = useState(false);
   const [message, setMessage] = useState("Enter every player, then generate the bracket.");
 
@@ -104,20 +106,24 @@ export default function StandingsWorkspace() {
 
   const createKnockoutFromGroups = () => {
     if (!groupStage || !groupStageComplete(groupStage)) return;
-    setRounds(createBracket(groupQualifiers(groupStage), () => 0.999999));
-    setMessage("The top two from each group have advanced to the knockout bracket.");
+    setRounds(createBracket(groupQualifiers(groupStage, qualifiersPerGroup, crossoverSeeding), () => 0.999999));
+    setMessage(`The top ${qualifiersPerGroup} from each group have advanced using ${crossoverSeeding && qualifiersPerGroup === 2 ? "crossover" : "group-order"} seeding.`);
   };
 
   const champion = rounds.at(-1)?.[0]?.winner;
   const playable = rounds.flatMap((round, roundIndex) => round.map((match, matchIndex) => ({ match, roundIndex, matchIndex }))).filter(({ match }) => match.home && match.away && !match.winner);
   const sizeOptions = format === "knockout" ? KNOCKOUT_SIZES : GROUP_SIZES;
   const unassignedGroupNames = groupSetup ? names.map((name) => name.trim()).filter((name) => name && !groupSetup.flat().includes(name)) : [];
+  const slotLabel = ({ groupIndex, position }: { groupIndex: number; position: number }) => `${String.fromCharCode(65 + groupIndex)}${position + 1}`;
+  const qualificationPlan = format === "groups" ? qualificationSlots(groupCount, qualifiersPerGroup, crossoverSeeding) : [];
+  const qualificationMatches = Array.from({ length: Math.floor(qualificationPlan.length / 2) }, (_, index) => [qualificationPlan[index * 2], qualificationPlan[index * 2 + 1]]);
+  const estimatedGamesEach = Math.max(0, Math.floor(entrantCount / groupCount) - 1) * (doubleElimination ? 2 : 1);
 
   return <section className="standings-workspace">
     <div className="standings-hero">
-      <div><p className="eyebrow">FC26 1V1 KICKOFF</p><h2>Friendly Standings</h2><p>Create head-to-head events and advance winners automatically.</p></div>
+      <div><p className="eyebrow">OFFICIAL + COMMUNITY EVENTS</p><h2>Competition Builder</h2><p>Control groups, fixtures, qualification, and knockout advancement before results begin.</p></div>
       <label>Format<select value={format} onChange={(event) => changeFormat(event.target.value as typeof format)}><option value="knockout">Knockout bracket</option><option value="groups">Groups → knockout</option><option value="league">League phase → knockout</option></select></label>
-      <label>Players<select value={entrantCount} onChange={(event) => resizeEntrants(Number(event.target.value))}>{sizeOptions.map((size) => <option key={size} value={size}>{size} players</option>)}</select></label>
+      <label>Teams / players<select value={entrantCount} onChange={(event) => resizeEntrants(Number(event.target.value))}>{sizeOptions.map((size) => <option key={size} value={size}>{size} entrants</option>)}</select></label>
       {format === "groups" && <label>Group count<select value={groupCount} onChange={(event) => { setGroupCount(Number(event.target.value)); setGroupSetup(null); setGroupStage(null); setRounds([]); }}>{Array.from({ length: Math.max(1, Math.floor(entrantCount / 2) - 1) }, (_, index) => index + 2).map((count) => <option key={count} value={count}>{count} groups</option>)}</select></label>}
       <button onClick={generate}>{format === "groups" ? "Set up groups" : format === "league" ? "Set up league phase" : "Generate random bracket"}</button>
     </div>
@@ -126,7 +132,14 @@ export default function StandingsWorkspace() {
 
     {groupSetup && !groupStage && <CollapsiblePanel title="Assign the participants" eyebrow="GROUP DRAW" meta={`${unassignedGroupNames.length} unassigned`} className="standings-collapsible">
     <section className="group-draw-board">
-      <div className="group-stage-heading"><p>Use the random draw or drag names manually. Groups may have uneven sizes.</p><div className="group-draw-actions"><label className="double-elimination-option"><input type="checkbox" checked={doubleElimination} onChange={(event) => setDoubleElimination(event.target.checked)} />Double elimination</label><button onClick={randomizeGroupSetup}>Randomly draw groups</button><button disabled={unassignedGroupNames.length > 0 || groupSetup.some((group) => group.length < 2)} onClick={createGroupFixtures}>Create fixtures</button></div></div>
+      <div className="competition-controls">
+        <label>Meetings per pairing<select value={doubleElimination ? 2 : 1} onChange={(event) => setDoubleElimination(Number(event.target.value) === 2)}><option value={1}>1 · single round robin</option><option value={2}>2 · home and away</option></select></label>
+        <label>Qualifiers per group<select value={qualifiersPerGroup} onChange={(event) => { setQualifiersPerGroup(Number(event.target.value)); setRounds([]); }}><option value={1}>1 team</option><option value={2}>2 teams</option></select></label>
+        <label className="crossover-option"><input type="checkbox" checked={crossoverSeeding} disabled={qualifiersPerGroup < 2 || groupCount < 2} onChange={(event) => { setCrossoverSeeding(event.target.checked); setRounds([]); }} /> Cross-group seeding</label>
+        <div><span>Expected group games</span><strong>About {estimatedGamesEach} per entrant</strong></div>
+      </div>
+      <div className="qualification-preview"><div><p className="eyebrow">QUALIFICATION MAP</p><strong>Locked before results</strong><span>{crossoverSeeding && qualifiersPerGroup === 2 ? "Group winners face another group’s runner-up." : "Qualifiers are seeded in group order."}</span></div>{qualificationMatches.map(([home, away], index) => <article key={index}><small>{qualificationMatches.length === 2 ? `Semifinal ${index + 1}` : `Knockout match ${index + 1}`}</small><strong>{slotLabel(home)} <i>vs</i> {slotLabel(away)}</strong></article>)}</div>
+      <div className="group-stage-heading"><p>Use the random draw or drag names manually. Groups may have uneven sizes.</p><div className="group-draw-actions"><button onClick={randomizeGroupSetup}>Randomly draw groups</button><button disabled={unassignedGroupNames.length > 0 || groupSetup.some((group) => group.length < 2)} onClick={createGroupFixtures}>Create fixtures</button></div></div>
       <div className="manual-group-layout"><aside className="group-player-pool" onDragOver={(event) => event.preventDefault()} onDrop={(event) => moveToGroup(event.dataTransfer.getData("text/group-name"), null)}><strong>Unassigned</strong><span>{unassignedGroupNames.length}</span>{unassignedGroupNames.map((name) => <div draggable onDragStart={(event) => event.dataTransfer.setData("text/group-name", name)} key={name}>{name}</div>)}{!unassignedGroupNames.length && <em>Everyone assigned</em>}</aside>
         <div className="manual-groups">{groupSetup.map((group, groupIndex) => <article onDragOver={(event) => event.preventDefault()} onDrop={(event) => moveToGroup(event.dataTransfer.getData("text/group-name"), groupIndex)} key={groupIndex}><h3>Group {String.fromCharCode(65 + groupIndex)} <span>{group.length}</span></h3>{group.map((name) => <div draggable onDragStart={(event) => event.dataTransfer.setData("text/group-name", name)} key={name}>{name}</div>)}{!group.length && <em>Drop players here</em>}</article>)}</div>
       </div>
@@ -144,12 +157,12 @@ export default function StandingsWorkspace() {
 
     {groupStage && <CollapsiblePanel title="Groups and fixtures" eyebrow="CLASSIC GROUP STAGE" meta={`${groupStage.fixtures.length} fixtures`} className="standings-collapsible">
     <section className="group-stage-board">
-      <div className="group-stage-heading"><p>3 points for a win · 1 for a draw · ranked by points, goal difference, then goals scored</p><button disabled={!groupStageComplete(groupStage)} onClick={createKnockoutFromGroups}>{groupStageComplete(groupStage) ? "Create knockout bracket" : "Complete all group matches"}</button></div>
+      <div className="group-stage-heading"><p>3 points for a win · 1 for a draw · ranked by points, goal difference, then goals scored · top {qualifiersPerGroup} advance</p><button disabled={!groupStageComplete(groupStage)} onClick={createKnockoutFromGroups}>{groupStageComplete(groupStage) ? "Create seeded knockout bracket" : "Complete all group matches"}</button></div>
       <div className="group-grid">{groupStage.groups.map((group, groupIndex) => {
         const fixtures = groupStage.fixtures.filter((fixture) => fixture.groupIndex === groupIndex);
         const table = calculateGroupStandings(group, fixtures);
         return <article className="group-card" key={groupIndex}><h3>Group {String.fromCharCode(65 + groupIndex)}</h3>
-          <div className="group-table"><div className="table-head"><span>#</span><span>Player</span><span>P</span><span>GD</span><span>Pts</span></div>{table.map((row, index) => <div className={index < 2 ? "qualifying" : ""} key={row.name}><span>{index + 1}</span><strong>{row.name}</strong><span>{row.played}</span><span>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</span><b>{row.points}</b></div>)}</div>
+          <div className="group-table"><div className="table-head"><span>#</span><span>Entrant</span><span>P</span><span>GD</span><span>Pts</span></div>{table.map((row, index) => <div className={index < qualifiersPerGroup ? "qualifying" : ""} key={row.name}><span>{index + 1}</span><strong>{row.name}</strong><span>{row.played}</span><span>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</span><b>{row.points}</b></div>)}</div>
           <div className="group-fixtures">{fixtures.map((fixture) => <div key={fixture.id}><span>{fixture.home}</span><input aria-label={`${fixture.home} score`} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} value={fixture.homeScore} onChange={(event) => updateGroupScore(fixture.id, "home", event.target.value)} /><em>–</em><input aria-label={`${fixture.away} score`} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={2} value={fixture.awayScore} onChange={(event) => updateGroupScore(fixture.id, "away", event.target.value)} /><span>{fixture.away}</span></div>)}</div>
         </article>;
       })}</div>
