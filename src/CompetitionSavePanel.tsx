@@ -17,6 +17,31 @@ type Props = {
 };
 
 const LOCAL_KEY = "uwu.saved-competitions.v1";
+const ZONES = [
+  ["America/New_York", "Eastern (ET)"], ["America/Chicago", "Central (CT)"],
+  ["America/Denver", "Mountain (MT)"], ["America/Los_Angeles", "Pacific (PT)"], ["UTC", "UTC"]
+] as const;
+
+const partsInZone = (date: Date, timeZone: string) => Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+  timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+}).formatToParts(date).filter(part => part.type !== "literal").map(part => [part.type, part.value]));
+
+const localTimeToIso = (value: string, timeZone: string) => {
+  if (!value) return "";
+  const [date, time] = value.split("T");
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const desired = Date.UTC(year, month - 1, day, hour, minute);
+  const shown = partsInZone(new Date(desired), timeZone);
+  const represented = Date.UTC(Number(shown.year), Number(shown.month) - 1, Number(shown.day), Number(shown.hour), Number(shown.minute));
+  return new Date(desired + (desired - represented)).toISOString();
+};
+
+const isoToLocalInput = (value: string, timeZone: string) => {
+  if (!value) return "";
+  const part = partsInZone(new Date(value), timeZone);
+  return `${part.year}-${part.month}-${part.day}T${part.hour}:${part.minute}`;
+};
 
 export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props) {
   const [events, setEvents] = useState<SavedCompetition[]>([]);
@@ -24,6 +49,7 @@ export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props
   const [title, setTitle] = useState("");
   const [destination, setDestination] = useState<SavedCompetition["destination"]>("community-events");
   const [startsAt, setStartsAt] = useState("");
+  const [timeZone, setTimeZone] = useState("America/New_York");
   const [message, setMessage] = useState("Save a draft now, then keep editing it before or after publication.");
 
   const readLocal = () => {
@@ -45,12 +71,13 @@ export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props
     setSelectedId(id);
     const saved = events.find(item => item.id === id);
     if (!saved) return;
-    setTitle(saved.title); setDestination(saved.destination); setStartsAt(saved.startsAt || "");
+    const savedZone = String(saved.snapshot.__eventTimeZone || "America/New_York");
+    setTitle(saved.title); setDestination(saved.destination); setTimeZone(savedZone); setStartsAt(isoToLocalInput(saved.startsAt || "", savedZone));
   };
 
   const save = async (status: SavedCompetition["status"]) => {
     if (!title.trim()) return setMessage("Give this competition a name first.");
-    const item = { id: selectedId || crypto.randomUUID(), title: title.trim(), destination, startsAt, format, status, snapshot };
+    const item = { id: selectedId || crypto.randomUUID(), title: title.trim(), destination, startsAt: localTimeToIso(startsAt, timeZone), format, status, snapshot: { ...snapshot, __eventTimeZone: timeZone } };
     try {
       const response = await fetch("/api/admin/events", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(item) });
       const data = await response.json();
@@ -76,6 +103,7 @@ export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props
     <button disabled={!selectedId} onClick={load}>Load selected</button>
     <label>Event name<input value={title} onChange={event => setTitle(event.target.value)} placeholder="Friday Night Cup" /></label>
     <label>Date and kickoff<input type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label>
+    <label>Entered timezone<select value={timeZone} onChange={event => setTimeZone(event.target.value)}>{ZONES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <label>Publish to<select value={destination} onChange={event => setDestination(event.target.value as SavedCompetition["destination"])}><option value="community-events">Community Events</option><option value="league-cup">League Cup</option></select></label>
     <div className="save-actions"><button onClick={() => void save("draft")}>Save draft</button><button className="publish-button" onClick={() => void save("published")}>Save + publish</button></div>
   </section>;
