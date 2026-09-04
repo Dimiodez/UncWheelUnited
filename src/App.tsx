@@ -7,6 +7,7 @@ import { SIMPLE_POSITIONS, SPECIFIC_POSITIONS, TEAM_HUES } from "./core/session"
 import type { Session } from "./types";
 import DraftWorkspace from "./DraftWorkspace";
 import StandingsWorkspace from "./StandingsWorkspace";
+import LiveDrawWorkspace from "./LiveDrawWorkspace";
 import CollapsiblePanel from "./CollapsiblePanel";
 import CompetitionSavePanel from "./CompetitionSavePanel";
 import type { SavedCompetition } from "./CompetitionSavePanel";
@@ -51,7 +52,7 @@ export default function App() {
   const [teamRotation, setTeamRotation] = useState(0);
   const [displayPlayerIds, setDisplayPlayerIds] = useState<string[] | null>(null);
   const [message, setMessage] = useState("Ready for the draw.");
-  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings">("cup");
+  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings" | "drawings">("cup");
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(session)), [session]);
 
@@ -63,6 +64,7 @@ export default function App() {
   const assignedCount = session.players.filter((player) => player.status === "assigned").length;
   const totalCapacity = session.teams.reduce((sum, team) => sum + team.capacity, 0);
   const allNormallyFull = normalTeams.length === 0;
+  const workspaceTitle = activeTab === "cup" ? "Cup Night Draw" : activeTab === "captain" ? "Captain Draft" : activeTab === "fantasy" ? "Fantasy Value Draft" : activeTab === "standings" ? "Competitions" : "Live Drawings";
 
   const wheelSegments = useMemo(() => {
     const displayed = displayPlayerIds
@@ -252,13 +254,13 @@ export default function App() {
         <div className="brand-mark"><img src={assetUrl("uwu-wheel-logo.png")} alt="UWU wheel logo" /></div>
         <div>
           <p className="eyebrow">UNC WHEEL UTILITY</p>
-          <h1>Cup Night Draw</h1>
+          <h1>{workspaceTitle}</h1>
         </div>
-        <div className="progress-block">
+        {activeTab !== "drawings" && activeTab !== "standings" && <div className="progress-block">
           <strong>{assignedCount}</strong><span>assigned</span>
           <strong>{available.length}</strong><span>ready</span>
-        </div>
-        <label className="add-wheel-control">Add Wheel
+        </div>}
+        {activeTab !== "drawings" && activeTab !== "standings" && <label className="add-wheel-control">Add Wheel
           <select value="" onChange={(event) => {
             const value = event.target.value;
             if (value === "simple" || value === "specific") setSession({ ...session, positionMode: value });
@@ -267,7 +269,7 @@ export default function App() {
             <option value="simple">Simple Positions</option>
             <option value="specific">Specific Positions</option>
           </select>
-        </label>
+        </label>}
       </header>
 
       <nav className="workspace-tabs">
@@ -275,9 +277,10 @@ export default function App() {
         <button className={activeTab === "captain" ? "active" : ""} onClick={() => setActiveTab("captain")}>Captain Draft</button>
         <button className={activeTab === "fantasy" ? "active" : ""} onClick={() => setActiveTab("fantasy")}>Fantasy Value Draft</button>
         <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Competitions</button>
+        <button className={activeTab === "drawings" ? "active" : ""} onClick={() => setActiveTab("drawings")}>Live Drawings</button>
       </nav>
 
-      {activeTab !== "standings" && <CompetitionSavePanel
+      {activeTab !== "standings" && activeTab !== "drawings" && <CompetitionSavePanel
         format={activeTab === "cup" ? "wheel-draw" : activeTab === "captain" ? "captain-draft" : "fantasy-draft"}
         snapshot={{ kind: "draw", activeTab, session }}
         onLoad={(saved: SavedCompetition) => {
@@ -450,6 +453,7 @@ export default function App() {
 
       {(activeTab === "captain" || activeTab === "fantasy") && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} testToolsEnabled={TEST_TOOLS_ENABLED} />}
       {activeTab === "standings" && <StandingsWorkspace />}
+      {activeTab === "drawings" && <LiveDrawWorkspace />}
     </main>
   );
 }
