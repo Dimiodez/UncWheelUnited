@@ -61,7 +61,8 @@ export default function CompetitionSavePanel({ format, snapshot, onLoad }: Props
       const response = await fetch("/api/admin/events", { credentials: "same-origin" });
       if (!response.ok) throw new Error();
       const data = await response.json();
-      setEvents(data.events);
+      const local = readLocal();
+      setEvents([...data.events, ...local.filter(saved => !data.events.some((server: SavedCompetition) => server.id === saved.id))]);
     } catch { setEvents(readLocal()); }
   };
 
