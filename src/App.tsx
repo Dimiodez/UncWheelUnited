@@ -274,7 +274,7 @@ export default function App() {
         <button className={activeTab === "cup" ? "active" : ""} onClick={() => setActiveTab("cup")}>Cup Night</button>
         <button className={activeTab === "captain" ? "active" : ""} onClick={() => setActiveTab("captain")}>Captain Draft</button>
         <button className={activeTab === "fantasy" ? "active" : ""} onClick={() => setActiveTab("fantasy")}>Fantasy Value Draft</button>
-        <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Standings</button>
+        <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Competitions</button>
       </nav>
 
       {activeTab !== "standings" && <CompetitionSavePanel
