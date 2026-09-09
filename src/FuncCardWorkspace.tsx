@@ -27,6 +27,12 @@ const TEAMS = [
   ["tab", "UFL TabascoKids"], ["jag", "UFL Jagiellonia"], ["ham", "UFL HamKam"],
   ["pum", "UFL Pumas UNAM"], ["com", "UFL Como"], ["bay", "UFL Bayern"], ["pal", "UFL Palermo"]
 ] as const;
+type TeamKey = (typeof TEAMS)[number][0];
+type SavedCreation = {
+  id: string; savedAt: number; name: string; position: string; rating: number; teamKey: TeamKey; stats: Stats;
+  templateKey: TemplateKey; layout: CardLayout; colors: CardColors; photoUrl: string; photoZoom: number;
+  photoCropX: number; photoCropY: number; photoFeather: number; nameArc: number;
+};
 
 const STAT_PROFILES: Record<string, Stats> = {
   ST: { PAC: 82, SHO: 86, PAS: 72, DRI: 81, DEF: 38, PHY: 78 }, CF: { PAC: 80, SHO: 83, PAS: 79, DRI: 84, DEF: 42, PHY: 74 },
@@ -56,12 +62,21 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
 const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = src; });
 const copyLayout = (source: CardLayout): CardLayout => Object.fromEntries(Object.entries(source).map(([key, value]) => [key, { ...value }])) as CardLayout;
+const openFuncDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
+  const request = indexedDB.open("func-card-studio", 1);
+  request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains("creations")) request.result.createObjectStore("creations", { keyPath: "id" }); };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+const readSavedCreations = async () => { const database = await openFuncDatabase(); return new Promise<SavedCreation[]>((resolve, reject) => { const request = database.transaction("creations", "readonly").objectStore("creations").getAll(); request.onsuccess = () => { database.close(); resolve((request.result as SavedCreation[]).sort((a, b) => b.savedAt - a.savedAt)); }; request.onerror = () => { database.close(); reject(request.error); }; }); };
+const storeCreation = async (creation: SavedCreation) => { const database = await openFuncDatabase(); return new Promise<void>((resolve, reject) => { const transaction = database.transaction("creations", "readwrite"); transaction.objectStore("creations").put(creation); transaction.oncomplete = () => { database.close(); resolve(); }; transaction.onerror = () => { database.close(); reject(transaction.error); }; }); };
+const deleteCreation = async (id: string) => { const database = await openFuncDatabase(); return new Promise<void>((resolve, reject) => { const transaction = database.transaction("creations", "readwrite"); transaction.objectStore("creations").delete(id); transaction.oncomplete = () => { database.close(); resolve(); }; transaction.onerror = () => { database.close(); reject(transaction.error); }; }); };
 
 export default function FuncCardWorkspace() {
   const [name, setName] = useState("UNC PLAYER");
   const [position, setPosition] = useState("ST");
   const [rating, setRating] = useState(86);
-  const [teamKey, setTeamKey] = useState<(typeof TEAMS)[number][0]>("goth");
+  const [teamKey, setTeamKey] = useState<TeamKey>("goth");
   const [stats, setStats] = useState<Stats>({ ...STAT_PROFILES.ST });
   const [templateKey, setTemplateKey] = useState<TemplateKey>("vintage");
   const [layouts, setLayouts] = useState<Record<TemplateKey, CardLayout>>(() => Object.fromEntries(Object.entries(TEMPLATES).map(([key, value]) => [key, copyLayout(value.layout)])) as Record<TemplateKey, CardLayout>);
@@ -75,6 +90,7 @@ export default function FuncCardWorkspace() {
   const [nameArc, setNameArc] = useState(0);
   const [snapVertical, setSnapVertical] = useState(false);
   const [snapHorizontal, setSnapHorizontal] = useState(false);
+  const [savedCreations, setSavedCreations] = useState<SavedCreation[]>([]);
   const [message, setMessage] = useState("Choose a border, then click any card element to move or resize it.");
   const cardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ layer: LayerId; x: number; y: number; originX: number; originY: number } | null>(null);
@@ -87,7 +103,7 @@ export default function FuncCardWorkspace() {
   const teamLogo = assetUrl(`func-teams/${teamKey}.png`);
   const frameUrl = assetUrl(template.file);
 
-  useEffect(() => () => { if (photoUrl) URL.revokeObjectURL(photoUrl); }, [photoUrl]);
+  useEffect(() => { readSavedCreations().then(setSavedCreations).catch(() => setMessage("Saved creations are unavailable in this browser session.")); }, []);
 
   const snap = (value: number, enabled: boolean) => enabled ? Math.round(value * 2) / 2 : value;
   const setLayerTransform = (layerId: LayerId, patch: Partial<LayerTransform>) => setLayouts((current) => ({ ...current, [templateKey]: { ...current[templateKey], [layerId]: { ...current[templateKey][layerId], ...patch, ...(patch.x === undefined ? {} : { x: snap(patch.x, snapVertical) }), ...(patch.y === undefined ? {} : { y: snap(patch.y, snapHorizontal) }) } } }));
@@ -99,9 +115,12 @@ export default function FuncCardWorkspace() {
 
   const randomizeStats = () => { const base = STAT_PROFILES[position]; const next = Object.fromEntries(STAT_KEYS.map((key) => [key, clamp(base[key] + Math.floor(Math.random() * 13) - 6, 35, 96)])) as Stats; setStats(next); setRating(clamp(Math.round(STAT_KEYS.reduce((sum, key) => sum + next[key], 0) / STAT_KEYS.length) + 10, 70, 95)); setMessage(`${position}-appropriate ratings generated. Every number remains editable.`); };
   const updatePosition = (nextPosition: string) => { setPosition(nextPosition); setStats({ ...STAT_PROFILES[nextPosition] }); };
-  const uploadPhoto = (file?: File) => { if (!file) return; if (!file.type.startsWith("image/")) return setMessage("Please choose an image file."); if (photoUrl) URL.revokeObjectURL(photoUrl); setPhotoUrl(URL.createObjectURL(file)); setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setPhotoFeather(32); setSelectedLayer("photo"); setMessage("Portrait loaded. Use crop, position, and feather controls to keep the full face visible."); };
+  const uploadPhoto = (file?: File) => { if (!file) return; if (!file.type.startsWith("image/")) return setMessage("Please choose an image file."); const reader = new FileReader(); reader.onload = () => { setPhotoUrl(String(reader.result)); setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setPhotoFeather(32); setSelectedLayer("photo"); setMessage("Portrait loaded. Use crop, position, and feather controls to keep the full face visible."); }; reader.onerror = () => setMessage("The portrait could not be loaded. Try another image."); reader.readAsDataURL(file); };
   const resetSelected = () => setLayerTransform(selectedLayer, { ...template.layout[selectedLayer] });
   const resetLayout = () => setLayouts((current) => ({ ...current, [templateKey]: copyLayout(template.layout) }));
+  const saveCreation = async () => { try { const creation: SavedCreation = { id: crypto.randomUUID(), savedAt: Date.now(), name: displayName, position, rating, teamKey, stats: { ...stats }, templateKey, layout: copyLayout(currentLayout), colors: { ...currentColors }, photoUrl, photoZoom: Math.max(1, photoZoom), photoCropX, photoCropY, photoFeather, nameArc }; await storeCreation(creation); setSavedCreations((current) => [creation, ...current]); setMessage(`${displayName} saved on this device. You can reopen it below or download a PNG.`); } catch { setMessage("This browser could not save the card. Check private-browsing or storage settings."); } };
+  const loadCreation = (creation: SavedCreation) => { setName(creation.name); setPosition(creation.position); setRating(creation.rating); setTeamKey(creation.teamKey); setStats({ ...creation.stats }); setTemplateKey(creation.templateKey); setLayouts((current) => ({ ...current, [creation.templateKey]: copyLayout(creation.layout) })); setColors((current) => ({ ...current, [creation.templateKey]: { ...creation.colors } })); setPhotoUrl(creation.photoUrl); setPhotoZoom(Math.max(1, creation.photoZoom)); setPhotoCropX(creation.photoCropX); setPhotoCropY(creation.photoCropY); setPhotoFeather(creation.photoFeather); setNameArc(creation.nameArc); setMessage(`${creation.name} reopened for editing.`); };
+  const removeCreation = async (id: string) => { try { await deleteCreation(id); setSavedCreations((current) => current.filter((creation) => creation.id !== id)); setMessage("Saved creation removed from this device."); } catch { setMessage("The saved creation could not be removed."); } };
 
   const exportCard = async () => {
     try {
@@ -139,7 +158,8 @@ export default function FuncCardWorkspace() {
         <section><p className="eyebrow">IDENTITY</p><h3>Player details</h3><label>Player or Discord name<input value={name} maxLength={22} onChange={(event) => setName(event.target.value)} placeholder="Enter player name" /></label><label>Name ribbon arc <span>{nameArc > 0 ? "+" : ""}{nameArc}</span><input type="range" min="-10" max="10" step="1" value={nameArc} onChange={(event) => setNameArc(Number(event.target.value))} /></label><div className="func-control-pair"><label>Position<select value={position} onChange={(event) => updatePosition(event.target.value)}>{POSITIONS.map((item) => <option key={item}>{item}</option>)}</select></label><label>Overall rating<input type="text" inputMode="numeric" maxLength={2} value={rating} onChange={(event) => setRating(clamp(Number(event.target.value.replace(/\D/g, "")) || 0, 0, 99))} /></label></div><label>6v6 club<select value={teamKey} onChange={(event) => setTeamKey(event.target.value as typeof teamKey)}>{TEAMS.map(([key, team]) => <option value={key} key={key}>{team}</option>)}</select></label></section>
         <section><p className="eyebrow">PORTRAIT</p><h3>Upload & crop</h3><label className="func-upload">Choose player photo<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadPhoto(event.target.files?.[0])} /></label><label>Face crop / zoom <span>{photoZoom.toFixed(2)}×</span><input type="range" min="1" max="2.8" step="0.01" value={Math.max(1, photoZoom)} onChange={(event) => setPhotoZoom(clamp(Number(event.target.value), 1, 2.8))} /><small>Edge-safe minimum keeps the original photo boundary outside the portrait mask.</small></label><label>Edge feather <span>{photoFeather}%</span><input type="range" min="0" max="70" step="1" value={photoFeather} onChange={(event) => setPhotoFeather(Number(event.target.value))} /></label><div className="func-control-pair"><label>Face left / right<input type="range" min="-100" max="100" value={photoCropX} onChange={(event) => setPhotoCropX(Number(event.target.value))} /></label><label>Face up / down<input type="range" min="-100" max="100" value={photoCropY} onChange={(event) => setPhotoCropY(Number(event.target.value))} /></label></div><button type="button" className="secondary" onClick={() => { setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setPhotoFeather(32); }}>Reset portrait</button></section>
         <section><div className="func-section-heading"><div><p className="eyebrow">ATTRIBUTES</p><h3>FUT-style stats</h3></div><button type="button" onClick={randomizeStats}>Randomize for {position}</button></div><div className="func-stat-inputs">{STAT_KEYS.map((key) => <label key={key}>{key}<input type="text" inputMode="numeric" maxLength={2} value={stats[key]} onChange={(event) => setStats({ ...stats, [key]: clamp(Number(event.target.value.replace(/\D/g, "")) || 0, 0, 99) })} /></label>)}</div></section>
-        <div className="func-export"><button type="button" className="primary" onClick={exportCard}>Export full-size PNG</button><p aria-live="polite">{message}</p></div>
+        <section className="func-saved-editor"><div className="func-section-heading"><div><p className="eyebrow">MY CREATIONS</p><h3>Save and reopen</h3></div><button type="button" onClick={saveCreation}>Save current card</button></div><p className="func-storage-note">Saved privately in this browser on this device, including the uploaded portrait and editable layout.</p>{savedCreations.length ? <div className="func-saved-list">{savedCreations.map((creation) => <article key={creation.id}><div><strong>{creation.name}</strong><span>{TEMPLATES[creation.templateKey].name} · {creation.position} · {new Date(creation.savedAt).toLocaleString()}</span></div><button type="button" onClick={() => loadCreation(creation)}>Open</button><button type="button" className="danger" onClick={() => removeCreation(creation.id)}>Delete</button></article>)}</div> : <p className="func-empty-saves">No saved cards yet.</p>}</section>
+        <div className="func-export"><button type="button" className="primary" onClick={exportCard}>Download full-size PNG</button><p aria-live="polite">{message}</p></div>
       </form>
     </div>
   </section>;
