@@ -12,6 +12,7 @@ import CollapsiblePanel from "./CollapsiblePanel";
 import CompetitionSavePanel from "./CompetitionSavePanel";
 import type { SavedCompetition } from "./CompetitionSavePanel";
 import { TEST_TOOLS_ENABLED } from "./testTools";
+import FuncCardWorkspace from "./FuncCardWorkspace";
 
 const STORAGE_KEY = "uwu.session.v1";
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
@@ -52,7 +53,7 @@ export default function App() {
   const [teamRotation, setTeamRotation] = useState(0);
   const [displayPlayerIds, setDisplayPlayerIds] = useState<string[] | null>(null);
   const [message, setMessage] = useState("Ready for the draw.");
-  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings" | "drawings">("cup");
+  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings" | "drawings" | "func">("cup");
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(session)), [session]);
 
@@ -64,7 +65,7 @@ export default function App() {
   const assignedCount = session.players.filter((player) => player.status === "assigned").length;
   const totalCapacity = session.teams.reduce((sum, team) => sum + team.capacity, 0);
   const allNormallyFull = normalTeams.length === 0;
-  const workspaceTitle = activeTab === "cup" ? "Cup Night Draw" : activeTab === "captain" ? "Captain Draft" : activeTab === "fantasy" ? "Fantasy Value Draft" : activeTab === "standings" ? "Competitions" : "Live Drawings";
+  const workspaceTitle = activeTab === "cup" ? "Cup Night Draw" : activeTab === "captain" ? "Captain Draft" : activeTab === "fantasy" ? "Fantasy Value Draft" : activeTab === "standings" ? "Competitions" : activeTab === "drawings" ? "Live Drawings" : "FUNC Card Studio";
 
   const wheelSegments = useMemo(() => {
     const displayed = displayPlayerIds
@@ -256,11 +257,11 @@ export default function App() {
           <p className="eyebrow">UNC WHEEL UTILITY</p>
           <h1>{workspaceTitle}</h1>
         </div>
-        {activeTab !== "drawings" && activeTab !== "standings" && <div className="progress-block">
+        {activeTab !== "drawings" && activeTab !== "standings" && activeTab !== "func" && <div className="progress-block">
           <strong>{assignedCount}</strong><span>assigned</span>
           <strong>{available.length}</strong><span>ready</span>
         </div>}
-        {activeTab !== "drawings" && activeTab !== "standings" && <label className="add-wheel-control">Add Wheel
+        {activeTab !== "drawings" && activeTab !== "standings" && activeTab !== "func" && <label className="add-wheel-control">Add Wheel
           <select value="" onChange={(event) => {
             const value = event.target.value;
             if (value === "simple" || value === "specific") setSession({ ...session, positionMode: value });
@@ -278,9 +279,10 @@ export default function App() {
         <button className={activeTab === "fantasy" ? "active" : ""} onClick={() => setActiveTab("fantasy")}>Fantasy Value Draft</button>
         <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Competitions</button>
         <button className={activeTab === "drawings" ? "active" : ""} onClick={() => setActiveTab("drawings")}>Live Drawings</button>
+        <button className={activeTab === "func" ? "active" : ""} onClick={() => setActiveTab("func")}>FUNC</button>
       </nav>
 
-      {activeTab !== "standings" && activeTab !== "drawings" && <CompetitionSavePanel
+      {activeTab !== "standings" && activeTab !== "drawings" && activeTab !== "func" && <CompetitionSavePanel
         format={activeTab === "cup" ? "wheel-draw" : activeTab === "captain" ? "captain-draft" : "fantasy-draft"}
         snapshot={{ kind: "draw", activeTab, session }}
         onLoad={(saved: SavedCompetition) => {
@@ -454,6 +456,7 @@ export default function App() {
       {(activeTab === "captain" || activeTab === "fantasy") && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} testToolsEnabled={TEST_TOOLS_ENABLED} />}
       {activeTab === "standings" && <StandingsWorkspace />}
       {activeTab === "drawings" && <LiveDrawWorkspace />}
+      {activeTab === "func" && <FuncCardWorkspace />}
     </main>
   );
 }
