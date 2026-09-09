@@ -9,6 +9,8 @@ type LayerId = "photo" | "rating" | "position" | "crest" | "name" | `stat-${Stat
 type LayerTransform = { x: number; y: number; scale: number };
 type CardLayout = Record<LayerId, LayerTransform>;
 type CardColors = { top: string; name: string; stats: string };
+type MasterConfig = { layout: CardLayout; colors: CardColors; photoFeather: number; nameArc: number; version?: number; publishedAt?: string };
+type OwnerMaster = { draft: MasterConfig | null; published: MasterConfig | null; publishedVersion: number; updatedAt?: string; publishedAt?: string };
 
 const STAT_KEYS: StatKey[] = ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"];
 const POSITIONS = ["ST", "CF", "LW", "RW", "CAM", "CM", "CDM", "LB", "RB", "CB"];
@@ -82,6 +84,8 @@ const PENDING_THEME_TEAMS = TEAMS.filter(([key]) => !ACTIVE_THEME_TEAMS.has(key)
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
 const copyLayout = (source: CardLayout): CardLayout => Object.fromEntries(Object.entries(source).map(([key, value]) => [key, { ...value }])) as CardLayout;
+const copyMaster = (source: MasterConfig): MasterConfig => ({ ...source, layout: copyLayout(source.layout), colors: { ...source.colors } });
+const builtInMaster = (key: TemplateKey): MasterConfig => ({ layout: copyLayout(TEMPLATES[key].layout), colors: { top: TEMPLATES[key].topInk, name: TEMPLATES[key].ink, stats: TEMPLATES[key].ink }, photoFeather: 32, nameArc: 0 });
 const openFuncDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open("func-card-studio", 1);
   request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains("creations")) request.result.createObjectStore("creations", { keyPath: "id" }); };
@@ -101,22 +105,30 @@ export default function FuncCardWorkspace() {
   const [templateKey, setTemplateKey] = useState<TemplateKey>("vintage");
   const [layouts, setLayouts] = useState<Record<TemplateKey, CardLayout>>(() => Object.fromEntries(Object.entries(TEMPLATES).map(([key, value]) => [key, copyLayout(value.layout)])) as Record<TemplateKey, CardLayout>);
   const [colors, setColors] = useState<Record<TemplateKey, CardColors>>(() => Object.fromEntries(Object.entries(TEMPLATES).map(([key, value]) => [key, { top: value.topInk, name: value.ink, stats: value.ink }])) as Record<TemplateKey, CardColors>);
+  const [photoFeathers, setPhotoFeathers] = useState<Record<TemplateKey, number>>(() => Object.fromEntries(TEMPLATE_ENTRIES.map(([key]) => [key, 32])) as Record<TemplateKey, number>);
+  const [nameArcs, setNameArcs] = useState<Record<TemplateKey, number>>(() => Object.fromEntries(TEMPLATE_ENTRIES.map(([key]) => [key, 0])) as Record<TemplateKey, number>);
+  const [masterDefaults, setMasterDefaults] = useState<Partial<Record<TemplateKey, MasterConfig>>>({});
+  const [ownerMasters, setOwnerMasters] = useState<Partial<Record<TemplateKey, OwnerMaster>>>({});
+  const [isOwner, setIsOwner] = useState(false);
+  const [masterBusy, setMasterBusy] = useState(false);
   const [selectedLayer, setSelectedLayer] = useState<LayerId>("photo");
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoZoom, setPhotoZoom] = useState(1);
   const [photoCropX, setPhotoCropX] = useState(0);
   const [photoCropY, setPhotoCropY] = useState(0);
-  const [photoFeather, setPhotoFeather] = useState(32);
-  const [nameArc, setNameArc] = useState(0);
   const [snapVertical, setSnapVertical] = useState(false);
   const [snapHorizontal, setSnapHorizontal] = useState(false);
   const [savedCreations, setSavedCreations] = useState<SavedCreation[]>([]);
   const [message, setMessage] = useState("Choose a border, then click any card element to move or resize it.");
   const cardRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ layer: LayerId; x: number; y: number; originX: number; originY: number } | null>(null);
+  const locallyEditedTemplatesRef = useRef(new Set<TemplateKey>());
   const template = TEMPLATES[templateKey];
   const currentLayout = layouts[templateKey];
   const currentColors = colors[templateKey];
+  const photoFeather = photoFeathers[templateKey];
+  const nameArc = nameArcs[templateKey];
+  const ownerMaster = ownerMasters[templateKey];
   const selectedTransform = currentLayout[selectedLayer];
   const displayName = name.trim().slice(0, 22).toUpperCase() || "UNC PLAYER";
   const safePhotoZoom = Math.max(1, photoZoom);
@@ -129,10 +141,51 @@ export default function FuncCardWorkspace() {
   const frameUrl = assetUrl(template.file);
 
   useEffect(() => { readSavedCreations().then(setSavedCreations).catch(() => setMessage("Saved creations are unavailable in this browser session.")); }, []);
+  useEffect(() => {
+    let active = true;
+    const loadMasters = async () => {
+      try {
+        const response = await fetch("/api/func-layouts", { credentials: "same-origin" });
+        if (response.ok) {
+          const data = await response.json() as { layouts?: Partial<Record<TemplateKey, MasterConfig>> };
+          if (active && data.layouts) {
+            const next = data.layouts;
+            const untouchedEntries = Object.entries(next).filter(([key]) => !locallyEditedTemplatesRef.current.has(key as TemplateKey));
+            setMasterDefaults(next);
+            setLayouts((current) => ({ ...current, ...Object.fromEntries(untouchedEntries.map(([key, value]) => [key, copyLayout(value!.layout)])) } as Record<TemplateKey, CardLayout>));
+            setColors((current) => ({ ...current, ...Object.fromEntries(untouchedEntries.map(([key, value]) => [key, { ...value!.colors }])) } as Record<TemplateKey, CardColors>));
+            setPhotoFeathers((current) => ({ ...current, ...Object.fromEntries(untouchedEntries.map(([key, value]) => [key, value!.photoFeather])) } as Record<TemplateKey, number>));
+            setNameArcs((current) => ({ ...current, ...Object.fromEntries(untouchedEntries.map(([key, value]) => [key, value!.nameArc])) } as Record<TemplateKey, number>));
+          }
+        }
+      } catch { /* GitHub Pages test builds intentionally fall back to bundled defaults. */ }
+      try {
+        const sessionResponse = await fetch("/api/auth/session", { credentials: "same-origin" });
+        const session = sessionResponse.ok ? await sessionResponse.json() as { user?: { role?: string } } : null;
+        if (!active || session?.user?.role !== "owner") return;
+        setIsOwner(true);
+        const adminResponse = await fetch("/api/admin/func-layouts", { credentials: "same-origin" });
+        if (adminResponse.ok) {
+          const data = await adminResponse.json() as { layouts?: Partial<Record<TemplateKey, OwnerMaster>> };
+          if (active && data.layouts) setOwnerMasters(data.layouts);
+        }
+      } catch { /* Owner tools are simply unavailable outside the production origin. */ }
+    };
+    void loadMasters();
+    return () => { active = false; };
+  }, []);
 
   const snap = (value: number, enabled: boolean) => enabled ? Math.round(value * 2) / 2 : value;
-  const setLayerTransform = (layerId: LayerId, patch: Partial<LayerTransform>) => setLayouts((current) => ({ ...current, [templateKey]: { ...current[templateKey], [layerId]: { ...current[templateKey][layerId], ...patch, ...(patch.x === undefined ? {} : { x: snap(patch.x, snapVertical) }), ...(patch.y === undefined ? {} : { y: snap(patch.y, snapHorizontal) }) } } }));
-  const setCardColors = (patch: Partial<CardColors>) => setColors((current) => ({ ...current, [templateKey]: { ...current[templateKey], ...patch } }));
+  const setLayerTransform = (layerId: LayerId, patch: Partial<LayerTransform>) => { locallyEditedTemplatesRef.current.add(templateKey); setLayouts((current) => ({ ...current, [templateKey]: { ...current[templateKey], [layerId]: { ...current[templateKey][layerId], ...patch, ...(patch.x === undefined ? {} : { x: snap(patch.x, snapVertical) }), ...(patch.y === undefined ? {} : { y: snap(patch.y, snapHorizontal) }) } } })); };
+  const setCardColors = (patch: Partial<CardColors>) => { locallyEditedTemplatesRef.current.add(templateKey); setColors((current) => ({ ...current, [templateKey]: { ...current[templateKey], ...patch } })); };
+  const setPhotoFeather = (value: number) => { locallyEditedTemplatesRef.current.add(templateKey); setPhotoFeathers((current) => ({ ...current, [templateKey]: value })); };
+  const setNameArc = (value: number) => { locallyEditedTemplatesRef.current.add(templateKey); setNameArcs((current) => ({ ...current, [templateKey]: value })); };
+  const applyMaster = (key: TemplateKey, config: MasterConfig) => {
+    setLayouts((current) => ({ ...current, [key]: copyLayout(config.layout) }));
+    setColors((current) => ({ ...current, [key]: { ...config.colors } }));
+    setPhotoFeathers((current) => ({ ...current, [key]: config.photoFeather }));
+    setNameArcs((current) => ({ ...current, [key]: config.nameArc }));
+  };
   const startDrag = (layerId: LayerId, event: React.PointerEvent<HTMLElement>) => { event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); setSelectedLayer(layerId); const transform = currentLayout[layerId]; dragRef.current = { layer: layerId, x: event.clientX, y: event.clientY, originX: transform.x, originY: transform.y }; };
   const moveDrag = (event: React.PointerEvent<HTMLElement>) => { if (!dragRef.current || !cardRef.current) return; const rect = cardRef.current.getBoundingClientRect(); setLayerTransform(dragRef.current.layer, { x: clamp(dragRef.current.originX + (event.clientX - dragRef.current.x) / rect.width * 100, 2, 98), y: clamp(dragRef.current.originY + (event.clientY - dragRef.current.y) / rect.height * 100, 2, 98) }); };
   const stopDrag = () => { dragRef.current = null; };
@@ -140,12 +193,26 @@ export default function FuncCardWorkspace() {
 
   const randomizeStats = () => { const base = STAT_PROFILES[position]; const next = Object.fromEntries(STAT_KEYS.map((key) => [key, clamp(base[key] + Math.floor(Math.random() * 13) - 6, 35, 96)])) as Stats; setStats(next); setRating(clamp(Math.round(STAT_KEYS.reduce((sum, key) => sum + next[key], 0) / STAT_KEYS.length) + 10, 70, 95)); setMessage(`${position}-appropriate ratings generated. Every number remains editable.`); };
   const updatePosition = (nextPosition: string) => { setPosition(nextPosition); setStats({ ...STAT_PROFILES[nextPosition] }); };
-  const uploadPhoto = (file?: File) => { if (!file) return; if (!file.type.startsWith("image/")) return setMessage("Please choose an image file."); const reader = new FileReader(); reader.onload = () => { setPhotoUrl(String(reader.result)); setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setPhotoFeather(32); setSelectedLayer("photo"); setMessage("Portrait loaded. Use crop, position, and feather controls to keep the full face visible."); }; reader.onerror = () => setMessage("The portrait could not be loaded. Try another image."); reader.readAsDataURL(file); };
-  const resetSelected = () => setLayerTransform(selectedLayer, { ...template.layout[selectedLayer] });
-  const resetLayout = () => setLayouts((current) => ({ ...current, [templateKey]: copyLayout(template.layout) }));
+  const uploadPhoto = (file?: File) => { if (!file) return; if (!file.type.startsWith("image/")) return setMessage("Please choose an image file."); const reader = new FileReader(); reader.onload = () => { setPhotoUrl(String(reader.result)); setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setSelectedLayer("photo"); setMessage("Portrait loaded. Use crop, position, and feather controls to keep the full face visible."); }; reader.onerror = () => setMessage("The portrait could not be loaded. Try another image."); reader.readAsDataURL(file); };
+  const resetSelected = () => setLayerTransform(selectedLayer, { ...(masterDefaults[templateKey]?.layout[selectedLayer] || template.layout[selectedLayer]) });
+  const resetLayout = () => { applyMaster(templateKey, masterDefaults[templateKey] || builtInMaster(templateKey)); setMessage(`${template.name} reset to its ${masterDefaults[templateKey] ? "published master" : "built-in default"}.`); };
   const saveCreation = async () => { try { const creation: SavedCreation = { id: crypto.randomUUID(), savedAt: Date.now(), name: displayName, position, rating, teamKey, stats: { ...stats }, templateKey, layout: copyLayout(currentLayout), colors: { ...currentColors }, photoUrl, photoZoom: safePhotoZoom, photoCropX: safePhotoCropX, photoCropY: safePhotoCropY, photoFeather: safePhotoFeather, nameArc }; await storeCreation(creation); setSavedCreations((current) => [creation, ...current]); setMessage(`${displayName} saved on this device. You can reopen it below or download a PNG.`); } catch { setMessage("This browser could not save the card. Check private-browsing or storage settings."); } };
-  const loadCreation = (creation: SavedCreation) => { setName(creation.name); setPosition(creation.position); setRating(creation.rating); setTeamKey(creation.teamKey); setStats({ ...creation.stats }); setTemplateKey(creation.templateKey); setLayouts((current) => ({ ...current, [creation.templateKey]: copyLayout(creation.layout) })); setColors((current) => ({ ...current, [creation.templateKey]: { ...creation.colors } })); setPhotoUrl(creation.photoUrl); setPhotoZoom(Math.max(1, creation.photoZoom)); setPhotoCropX(creation.photoCropX); setPhotoCropY(creation.photoCropY); setPhotoFeather(creation.photoFeather); setNameArc(creation.nameArc); setMessage(`${creation.name} reopened for editing.`); };
+  const loadCreation = (creation: SavedCreation) => { locallyEditedTemplatesRef.current.add(creation.templateKey); setName(creation.name); setPosition(creation.position); setRating(creation.rating); setTeamKey(creation.teamKey); setStats({ ...creation.stats }); setTemplateKey(creation.templateKey); setLayouts((current) => ({ ...current, [creation.templateKey]: copyLayout(creation.layout) })); setColors((current) => ({ ...current, [creation.templateKey]: { ...creation.colors } })); setPhotoUrl(creation.photoUrl); setPhotoZoom(Math.max(1, creation.photoZoom)); setPhotoCropX(creation.photoCropX); setPhotoCropY(creation.photoCropY); setPhotoFeathers((current) => ({ ...current, [creation.templateKey]: creation.photoFeather })); setNameArcs((current) => ({ ...current, [creation.templateKey]: creation.nameArc })); setMessage(`${creation.name} reopened for editing.`); };
   const removeCreation = async (id: string) => { try { await deleteCreation(id); setSavedCreations((current) => current.filter((creation) => creation.id !== id)); setMessage("Saved creation removed from this device."); } catch { setMessage("The saved creation could not be removed."); } };
+  const currentMaster = (): MasterConfig => ({ layout: copyLayout(currentLayout), colors: { ...currentColors }, photoFeather: safePhotoFeather, nameArc });
+  const saveMaster = async (action: "save-draft" | "publish") => {
+    setMasterBusy(true);
+    try {
+      const config = currentMaster();
+      const response = await fetch("/api/admin/func-layouts", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, templateKey, config }) });
+      const result = await response.json().catch(() => ({})) as { error?: string; version?: number };
+      if (!response.ok) throw new Error(result.error || "Master layout could not be saved.");
+      setOwnerMasters((current) => ({ ...current, [templateKey]: { draft: copyMaster(config), published: action === "publish" ? copyMaster(config) : current[templateKey]?.published || null, publishedVersion: action === "publish" ? Number(result.version || 1) : current[templateKey]?.publishedVersion || 0, updatedAt: new Date().toISOString(), publishedAt: action === "publish" ? new Date().toISOString() : current[templateKey]?.publishedAt } }));
+      if (action === "publish") setMasterDefaults((current) => ({ ...current, [templateKey]: { ...copyMaster(config), version: result.version } }));
+      setMessage(action === "publish" ? `${template.name} master v${result.version} is live for new cards and resets.` : `${template.name} master draft saved privately for the Owner.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Master layout could not be saved."); }
+    finally { setMasterBusy(false); }
+  };
 
   const exportCard = async () => {
     const card = cardRef.current;
@@ -176,9 +243,10 @@ export default function FuncCardWorkspace() {
       <form className="func-controls" onSubmit={(event) => event.preventDefault()}>
         <CollapsiblePanel title="Choose a card" eyebrow="BORDER COLLECTION" meta={template.name} className="func-editor-panel" initiallyOpen><label>Card border<select value={templateKey} onChange={(event) => { const key = event.target.value as TemplateKey; const nextTemplate = TEMPLATES[key]; setTemplateKey(key); if (nextTemplate.team) setTeamKey(nextTemplate.team); setMessage(`${nextTemplate.name} border selected.${nextTemplate.team ? " Its matching team crest is ready." : ""} Its layout can be tuned independently.`); }}><optgroup label="Available UFL borders">{GENERIC_TEMPLATES.map(([key, option]) => <option value={key} key={key}>{option.name}</option>)}</optgroup><optgroup label="6v6 team themes">{TEAM_TEMPLATES.map(([key, option]) => <option value={key} key={key}>{option.name}</option>)}</optgroup>{PENDING_THEME_TEAMS.length ? <optgroup label="6v6 team themes — upload pending">{PENDING_THEME_TEAMS.map(([key, team]) => <option value={`pending-${key}`} disabled key={key}>{team.replace(/^UFL /, "")} theme — upload pending</option>)}</optgroup> : null}</select></label><div className="func-border-preview"><img src={frameUrl} alt="" /><div><strong>{template.name}</strong><span>{template.team ? "Official team theme" : "Available now"}</span></div></div></CollapsiblePanel>
         <CollapsiblePanel title="Move & resize" eyebrow="LAYOUT EDITOR" meta={LAYER_LABELS[selectedLayer]} className="func-editor-panel func-layout-editor" initiallyOpen={false}><div className="func-panel-actions"><button type="button" onClick={resetLayout}>Reset this border</button></div><label>Selected element<select value={selectedLayer} onChange={(event) => setSelectedLayer(event.target.value as LayerId)}>{(Object.entries(LAYER_LABELS) as [LayerId, string][]).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label><label>Element size <span>{selectedTransform.scale.toFixed(2)}×</span><input type="range" min="0.45" max="2.25" step="0.01" value={selectedTransform.scale} onChange={(event) => setLayerTransform(selectedLayer, { scale: Number(event.target.value) })} /></label><div className="func-control-pair"><label>Left / right<input type="range" min="2" max="98" step="0.1" value={selectedTransform.x} onChange={(event) => setLayerTransform(selectedLayer, { x: Number(event.target.value) })} /></label><label>Up / down<input type="range" min="2" max="98" step="0.1" value={selectedTransform.y} onChange={(event) => setLayerTransform(selectedLayer, { y: Number(event.target.value) })} /></label></div><div className="func-snap-controls"><label><input type="checkbox" checked={snapVertical} onChange={(event) => setSnapVertical(event.target.checked)} /> Vertical grid <span>snaps left/right</span></label><label><input type="checkbox" checked={snapHorizontal} onChange={(event) => setSnapHorizontal(event.target.checked)} /> Horizontal grid <span>snaps up/down</span></label></div><button type="button" className="secondary" onClick={resetSelected}>Reset selected element</button></CollapsiblePanel>
+        {isOwner ? <CollapsiblePanel title="Master card alignment" eyebrow="OWNER ONLY" meta={ownerMaster?.publishedVersion ? `Live v${ownerMaster.publishedVersion}` : "Not published"} className="func-editor-panel func-owner-editor" initiallyOpen={false}><p className="func-storage-note">Set the starting alignment for this border. Drafts are private; publishing changes new cards and future resets without altering anyone's saved creation.</p><div className="func-master-actions"><button type="button" disabled={masterBusy} onClick={() => void saveMaster("save-draft")}>Save Owner draft</button><button type="button" className="primary" disabled={masterBusy} onClick={() => void saveMaster("publish")}>Publish this master</button>{ownerMaster?.draft ? <button type="button" className="secondary" disabled={masterBusy} onClick={() => { applyMaster(templateKey, ownerMaster.draft!); setMessage(`${template.name} Owner draft loaded into the editor.`); }}>Load saved draft</button> : null}{ownerMaster?.published ? <button type="button" className="secondary" disabled={masterBusy} onClick={() => { applyMaster(templateKey, ownerMaster.published!); setMessage(`${template.name} published master loaded into the editor.`); }}>Load live master</button> : null}</div></CollapsiblePanel> : null}
         <CollapsiblePanel title="Card lettering" eyebrow="COLOR THEMES" meta="3 editable colors" className="func-editor-panel func-color-editor" initiallyOpen={false}><div className="func-panel-actions"><button type="button" onClick={() => setCardColors({ top: template.topInk, name: template.ink, stats: template.ink })}>Use border default</button></div><div className="func-color-themes">{Object.entries(COLOR_THEMES).map(([key, theme]) => <button type="button" onClick={() => setCardColors(theme.colors)} key={key}><i style={{ background: theme.colors.top }} /><span>{theme.label}</span></button>)}</div><div className="func-color-pickers"><label>Rating & position<input type="color" value={currentColors.top} onChange={(event) => setCardColors({ top: event.target.value })} /></label><label>Player name<input type="color" value={currentColors.name} onChange={(event) => setCardColors({ name: event.target.value })} /></label><label>Six stats<input type="color" value={currentColors.stats} onChange={(event) => setCardColors({ stats: event.target.value })} /></label></div></CollapsiblePanel>
         <CollapsiblePanel title="Player details" eyebrow="IDENTITY" meta={`${rating} ${position}`} className="func-editor-panel" initiallyOpen><label>Player or Discord name<input value={name} maxLength={22} onChange={(event) => setName(event.target.value)} placeholder="Enter player name" /></label><label>Name ribbon arc <span>{nameArc > 0 ? "+" : ""}{nameArc}</span><input type="range" min="-10" max="10" step="1" value={nameArc} onChange={(event) => setNameArc(Number(event.target.value))} /></label><div className="func-control-pair"><label>Position<select value={position} onChange={(event) => updatePosition(event.target.value)}>{POSITIONS.map((item) => <option key={item}>{item}</option>)}</select></label><label>Overall rating<input type="text" inputMode="numeric" maxLength={2} value={rating} onChange={(event) => setRating(clamp(Number(event.target.value.replace(/\D/g, "")) || 0, 0, 99))} /></label></div><label>6v6 club<select value={teamKey} onChange={(event) => setTeamKey(event.target.value as TeamKey)}>{TEAMS.map(([key, team]) => <option value={key} key={key}>{team}</option>)}</select></label></CollapsiblePanel>
-        <CollapsiblePanel title="Upload & crop" eyebrow="PORTRAIT" meta={photoUrl ? "Photo loaded" : "No photo"} className="func-editor-panel" initiallyOpen={false}><label className="func-upload">Choose player photo<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadPhoto(event.target.files?.[0])} /></label><label>Face crop / zoom <span>{safePhotoZoom.toFixed(2)}×</span><input type="range" min="1" max="2.8" step="0.01" value={safePhotoZoom} onChange={(event) => { const nextZoom = clamp(Number(event.target.value), 1, 2.8); const nextPan = (nextZoom - 1) * 50; setPhotoZoom(nextZoom); setPhotoCropX((current) => clamp(current, -nextPan, nextPan)); setPhotoCropY((current) => clamp(current, -nextPan, nextPan)); }} /><small>The minimum preserves the original soft oval without exposing photo corners.</small></label><label>Edge feather <span>{safePhotoFeather}%</span><input type="range" min="8" max="55" step="1" value={safePhotoFeather} onChange={(event) => setPhotoFeather(Number(event.target.value))} /></label><div className="func-control-pair"><label>Face left / right<input type="range" min={-maxPhotoPan} max={maxPhotoPan || .01} step="0.1" value={safePhotoCropX} disabled={maxPhotoPan < .1} onChange={(event) => setPhotoCropX(clamp(Number(event.target.value), -maxPhotoPan, maxPhotoPan))} /></label><label>Face up / down<input type="range" min={-maxPhotoPan} max={maxPhotoPan || .01} step="0.1" value={safePhotoCropY} disabled={maxPhotoPan < .1} onChange={(event) => setPhotoCropY(clamp(Number(event.target.value), -maxPhotoPan, maxPhotoPan))} /></label></div><button type="button" className="secondary" onClick={() => { setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setPhotoFeather(32); }}>Reset portrait</button></CollapsiblePanel>
+        <CollapsiblePanel title="Upload & crop" eyebrow="PORTRAIT" meta={photoUrl ? "Photo loaded" : "No photo"} className="func-editor-panel" initiallyOpen={false}><label className="func-upload">Choose player photo<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadPhoto(event.target.files?.[0])} /></label><label>Face crop / zoom <span>{safePhotoZoom.toFixed(2)}×</span><input type="range" min="1" max="2.8" step="0.01" value={safePhotoZoom} onChange={(event) => { const nextZoom = clamp(Number(event.target.value), 1, 2.8); const nextPan = (nextZoom - 1) * 50; setPhotoZoom(nextZoom); setPhotoCropX((current) => clamp(current, -nextPan, nextPan)); setPhotoCropY((current) => clamp(current, -nextPan, nextPan)); }} /><small>The minimum preserves the original soft oval without exposing photo corners.</small></label><label>Edge feather <span>{safePhotoFeather}%</span><input type="range" min="8" max="55" step="1" value={safePhotoFeather} onChange={(event) => setPhotoFeather(Number(event.target.value))} /></label><div className="func-control-pair"><label>Face left / right<input type="range" min={-maxPhotoPan} max={maxPhotoPan || .01} step="0.1" value={safePhotoCropX} disabled={maxPhotoPan < .1} onChange={(event) => setPhotoCropX(clamp(Number(event.target.value), -maxPhotoPan, maxPhotoPan))} /></label><label>Face up / down<input type="range" min={-maxPhotoPan} max={maxPhotoPan || .01} step="0.1" value={safePhotoCropY} disabled={maxPhotoPan < .1} onChange={(event) => setPhotoCropY(clamp(Number(event.target.value), -maxPhotoPan, maxPhotoPan))} /></label></div><button type="button" className="secondary" onClick={() => { setPhotoZoom(1); setPhotoCropX(0); setPhotoCropY(0); setPhotoFeather(masterDefaults[templateKey]?.photoFeather || 32); }}>Reset portrait</button></CollapsiblePanel>
         <CollapsiblePanel title="FUT-style stats" eyebrow="ATTRIBUTES" meta={`${stats.PAC} PAC · ${stats.SHO} SHO`} className="func-editor-panel" initiallyOpen={false}><div className="func-panel-actions"><button type="button" onClick={randomizeStats}>Randomize for {position}</button></div><div className="func-stat-inputs">{STAT_KEYS.map((key) => <label key={key}>{key}<input type="text" inputMode="numeric" maxLength={2} value={stats[key]} onChange={(event) => setStats({ ...stats, [key]: clamp(Number(event.target.value.replace(/\D/g, "")) || 0, 0, 99) })} /></label>)}</div></CollapsiblePanel>
         <CollapsiblePanel title="Save and reopen" eyebrow="MY CREATIONS" meta={`${savedCreations.length} saved`} className="func-editor-panel func-saved-editor" initiallyOpen={false}><div className="func-panel-actions"><button type="button" onClick={saveCreation}>Save current card</button></div><p className="func-storage-note">Saved privately in this browser on this device, including the uploaded portrait and editable layout.</p>{savedCreations.length ? <div className="func-saved-list">{savedCreations.map((creation) => <article key={creation.id}><div><strong>{creation.name}</strong><span>{TEMPLATES[creation.templateKey].name} · {creation.position} · {new Date(creation.savedAt).toLocaleString()}</span></div><button type="button" onClick={() => loadCreation(creation)}>Open</button><button type="button" className="danger" onClick={() => removeCreation(creation.id)}>Delete</button></article>)}</div> : <p className="func-empty-saves">No saved cards yet.</p>}</CollapsiblePanel>
         <div className="func-export"><button type="button" className="primary" onClick={exportCard}>Download full-size PNG</button><p aria-live="polite">{message}</p></div>
