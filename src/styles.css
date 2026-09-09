@@ -251,5 +251,6 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 .func-snap-controls label{display:grid;grid-template-columns:20px 1fr;align-items:center;gap:8px;margin:0;padding:10px;border:1px solid #345477;border-radius:8px;color:#dce8f8;background:#071427;cursor:pointer}
 .func-snap-controls label span{grid-column:2;margin:0;color:#7890b2;font-size:9px;letter-spacing:0;text-transform:none}
 .func-snap-controls input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:#08bfea}
+.func-controls label small{color:#6f86a7;font-size:9px;font-weight:600;letter-spacing:0;line-height:1.35;text-transform:none}
 @media(max-width:650px){.func-color-themes{grid-template-columns:repeat(3,1fr)}.func-color-pickers,.func-snap-controls{grid-template-columns:1fr}}
 @media(max-width:650px){.func-color-themes{grid-template-columns:repeat(3,1fr)}.func-color-pickers{grid-template-columns:1fr}}
