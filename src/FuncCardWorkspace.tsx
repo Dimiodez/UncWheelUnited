@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
 import CollapsiblePanel from "./CollapsiblePanel";
 
 type StatKey = "PAC" | "SHO" | "PAS" | "DRI" | "DEF" | "PHY";
@@ -80,7 +81,6 @@ const PENDING_THEME_TEAMS = TEAMS.filter(([key]) => !ACTIVE_THEME_TEAMS.has(key)
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
-const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = src; });
 const copyLayout = (source: CardLayout): CardLayout => Object.fromEntries(Object.entries(source).map(([key, value]) => [key, { ...value }])) as CardLayout;
 const openFuncDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open("func-card-studio", 1);
@@ -148,19 +148,16 @@ export default function FuncCardWorkspace() {
   const removeCreation = async (id: string) => { try { await deleteCreation(id); setSavedCreations((current) => current.filter((creation) => creation.id !== id)); setMessage("Saved creation removed from this device."); } catch { setMessage("The saved creation could not be removed."); } };
 
   const exportCard = async () => {
+    const card = cardRef.current;
+    if (!card) return setMessage("The card preview is not ready yet.");
     try {
-      const canvas = document.createElement("canvas"); canvas.width = template.width; canvas.height = template.height; const context = canvas.getContext("2d"); if (!context) throw new Error("Canvas unavailable");
-      const [frame, crest, portrait] = await Promise.all([loadImage(frameUrl), loadImage(teamLogo), photoUrl ? loadImage(photoUrl) : Promise.resolve(null)]); context.drawImage(frame, 0, 0, canvas.width, canvas.height);
-      const point = (id: LayerId) => ({ ...currentLayout[id], x: currentLayout[id].x / 100 * canvas.width, y: currentLayout[id].y / 100 * canvas.height });
-      if (portrait) { const spot = point("photo"); const boxWidth = template.photoWidth / 100 * canvas.width * spot.scale; const boxHeight = template.photoHeight / 100 * canvas.height * spot.scale; const portraitCanvas = document.createElement("canvas"); portraitCanvas.width = canvas.width; portraitCanvas.height = canvas.height; const portraitContext = portraitCanvas.getContext("2d"); if (!portraitContext) throw new Error("Portrait canvas unavailable"); const cover = Math.max(boxWidth / portrait.width, boxHeight / portrait.height) * safePhotoZoom; const width = portrait.width * cover; const height = portrait.height * cover; portraitContext.drawImage(portrait, spot.x - width / 2 + safePhotoCropX / 100 * boxWidth, spot.y - height / 2 + safePhotoCropY / 100 * boxHeight, width, height); portraitContext.globalCompositeOperation = "destination-in"; portraitContext.save(); portraitContext.translate(spot.x, spot.y + boxHeight * .01); portraitContext.scale(boxWidth * .53, boxHeight * .52); const featherStart = clamp(1 - safePhotoFeather / 100, 0, .999); const gradient = portraitContext.createRadialGradient(0, 0, featherStart, 0, 0, 1); gradient.addColorStop(0, "rgba(0,0,0,1)"); gradient.addColorStop(1, "rgba(0,0,0,0)"); portraitContext.fillStyle = gradient; portraitContext.beginPath(); portraitContext.arc(0, 0, 1, 0, Math.PI * 2); portraitContext.fill(); portraitContext.restore(); context.drawImage(portraitCanvas, 0, 0); }
-      context.fillStyle = currentColors.top; context.textAlign = "center"; context.textBaseline = "middle";
-      const ratingSpot = point("rating"); context.font = `900 ${Math.round(canvas.width * .071 * ratingSpot.scale)}px Arial Black, Impact, sans-serif`; context.fillText(String(rating), ratingSpot.x, ratingSpot.y);
-      const positionSpot = point("position"); context.font = `900 ${Math.round(canvas.width * .038 * positionSpot.scale)}px Arial Black, Impact, sans-serif`; context.fillText(position, positionSpot.x, positionSpot.y);
-      const crestSpot = point("crest"); const crestSize = canvas.width * .145 * crestSpot.scale; context.drawImage(crest, crestSpot.x - crestSize / 2, crestSpot.y - crestSize / 2, crestSize, crestSize); context.fillStyle = currentColors.name;
-      const nameSpot = point("name"); context.font = `900 ${Math.round(canvas.width * .047 * nameSpot.scale)}px Arial Black, Impact, sans-serif`; const maxNameWidth = canvas.width * .58 * nameSpot.scale; const naturalNameWidth = context.measureText(displayName).width; const nameWidthScale = Math.min(1, maxNameWidth / naturalNameWidth); const charWidths = [...displayName].map((character) => context.measureText(character).width); const totalNameWidth = charWidths.reduce((sum, width) => sum + width, 0) * nameWidthScale; const arcHeight = nameArc * canvas.width * .002; let nameX = nameSpot.x - totalNameWidth / 2; [...displayName].forEach((character, index) => { const progress = displayName.length === 1 ? 0 : index / (displayName.length - 1) * 2 - 1; const offsetY = -arcHeight * (1 - progress * progress); const tangent = totalNameWidth ? 4 * arcHeight * progress / totalNameWidth : 0; const characterWidth = charWidths[index] * nameWidthScale; context.save(); context.translate(nameX + characterWidth / 2, nameSpot.y + offsetY); context.rotate(Math.atan(tangent)); context.scale(nameWidthScale, 1); context.fillText(character, 0, 0); context.restore(); nameX += characterWidth; }); context.fillStyle = currentColors.stats;
-      STAT_KEYS.forEach((key) => { const spot = point(`stat-${key}`); context.font = `900 ${Math.round(canvas.width * .033 * spot.scale)}px Arial Black, Impact, sans-serif`; context.fillText(`${stats[key]}  ${key}`, spot.x, spot.y, canvas.width * .26 * spot.scale); });
-      const link = document.createElement("a"); link.download = `func-${templateKey}-${(name || "player").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`; link.href = canvas.toDataURL("image/png"); link.click(); setMessage(`Full-resolution ${template.name} card exported.`);
+      await document.fonts.ready;
+      card.dataset.exporting = "true";
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const dataUrl = await toPng(card, { cacheBust: true, backgroundColor: "transparent", pixelRatio: 1, canvasWidth: template.width, canvasHeight: template.height });
+      const link = document.createElement("a"); link.download = `func-${templateKey}-${(name || "player").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`; link.href = dataUrl; link.click(); setMessage(`Full-resolution ${template.name} card exported exactly as previewed.`);
     } catch { setMessage("The card could not be exported. Reload the portrait and try again."); }
+    finally { delete card.dataset.exporting; }
   };
 
   return <section className="func-workspace">

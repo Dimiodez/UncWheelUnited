@@ -247,6 +247,7 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 .func-card-editable .func-player-name{height:12%;overflow:visible;text-overflow:clip}
 .func-player-name svg{display:block;width:100%;height:100%;overflow:visible}
 .func-player-name text{fill:currentColor;font-family:Arial Black,Impact,sans-serif;font-weight:900;letter-spacing:0;text-shadow:0 1px #fff8}
+.func-card[data-exporting="true"]{filter:none}.func-card[data-exporting="true"] .func-layer[data-selected="true"]{outline:none;filter:none}
 .func-snap-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .func-snap-controls label{display:grid;grid-template-columns:20px 1fr;align-items:center;gap:8px;margin:0;padding:10px;border:1px solid #345477;border-radius:8px;color:#dce8f8;background:#071427;cursor:pointer}
 .func-snap-controls label span{grid-column:2;margin:0;color:#7890b2;font-size:9px;letter-spacing:0;text-transform:none}
