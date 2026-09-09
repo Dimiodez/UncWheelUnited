@@ -16,6 +16,7 @@ import FuncCardWorkspace from "./FuncCardWorkspace";
 
 const STORAGE_KEY = "uwu.session.v1";
 const assetUrl = (name: string) => `${import.meta.env.BASE_URL}assets/${name}`;
+const FUNC_ONLY = import.meta.env.VITE_FUNC_ONLY === "true";
 
 const loadSession = (): Session => {
   try {
@@ -41,7 +42,7 @@ const loadSession = (): Session => {
   }
 };
 
-export default function App() {
+function FullApp() {
   const [session, setSession] = useState<Session>(loadSession);
   const [playerInput, setPlayerInput] = useState("");
   const [teamInput, setTeamInput] = useState("");
@@ -459,4 +460,16 @@ export default function App() {
       {activeTab === "func" && <FuncCardWorkspace />}
     </main>
   );
+}
+
+function FuncOnlyApp() {
+  return (
+    <main className="app-shell func-only-shell">
+      <FuncCardWorkspace />
+    </main>
+  );
+}
+
+export default function App() {
+  return FUNC_ONLY ? <FuncOnlyApp /> : <FullApp />;
 }
