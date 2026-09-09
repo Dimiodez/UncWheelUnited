@@ -243,7 +243,7 @@ select, input, textarea { color: #f5f2f8; background: #17151d; border: 1px solid
 
 /* FUNC portrait finishing, ribbon arc, and alignment aids */
 .func-layer{color:var(--func-name-ink)}
-.func-card-editable .func-portrait-window{mask-image:radial-gradient(ellipse at center,#000 0,#000 calc(100% - var(--func-feather,32%)),transparent 100%)}
+.func-card-editable .func-portrait-window{mask-image:radial-gradient(ellipse 53% 52% at 50% 51%,#000 0,#000 calc(100% - var(--func-feather,32%)),transparent 100%)}
 .func-card-editable .func-player-name{height:12%;overflow:visible;text-overflow:clip}
 .func-player-name svg{display:block;width:100%;height:100%;overflow:visible}
 .func-player-name text{fill:currentColor;font-family:Arial Black,Impact,sans-serif;font-weight:900;letter-spacing:0;text-shadow:0 1px #fff8}
