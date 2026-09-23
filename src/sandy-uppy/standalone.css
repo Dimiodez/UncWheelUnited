@@ -1,0 +1,18 @@
+* { box-sizing: border-box; }
+body { margin: 0; padding: 12px; background: #f8f4e8; color: #092b47; font-family: Arial, sans-serif; }
+html[data-theme="dark"] body { background: #081726; color: #fff6df; }
+html[data-theme="vintage"] body { background: #e7dcc2; color: #342d23; }
+.sandy-game-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.sandy-game-heading h2 { color: inherit; }
+.eyebrow { font-size: 11px; letter-spacing: .15em; font-weight: bold; }
+.sandy-start-guide { color: #d7e5ef; }
+.sandy-test-strip { padding: 12px; }
+.sandy-game-canvas canvas { display: block; }
+button { font-family: inherit; }
+.sandy-leaderboard { margin-top: 24px; padding: 18px; border: 1px solid #7292a4; border-radius: 8px; }
+.sandy-leaderboard p, .sandy-score-status { font-size: 13px; line-height: 1.6; }
+.sandy-table-wrap { overflow-x: auto; }
+.sandy-leaderboard table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sandy-leaderboard th, .sandy-leaderboard td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #7292a466; }
+.sandy-leaderboard button { margin-top: 16px; padding: 10px 14px; color: inherit; background: transparent; border: 1px solid #7292a4; cursor: pointer; }
+@media(max-width:700px) { body { padding: 4px; } }

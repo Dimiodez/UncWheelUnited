@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:sandy": "tsc -b && vite build --config vite.sandy.config.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -24,3 +25,4 @@
     "vitest": "latest"
   }
 }
+

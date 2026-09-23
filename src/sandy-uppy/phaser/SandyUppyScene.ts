@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { BeachModel } from "../simulation/BeachModel";
+import { rankedRun } from "../save/RankedRun";
 import { AudioManager } from "../audio/AudioManager";
 import type { InputController } from "../input/InputController";
 import { highScoreStore } from "../save/HighScoreStore";
@@ -33,7 +35,10 @@ export class SandyUppyScene extends Phaser.Scene {
   private audioManager = new AudioManager();
   private player!: Phaser.Physics.Arcade.Sprite;
   private ball!: Phaser.Physics.Arcade.Sprite;
-  private sandcastle!: Phaser.Physics.Arcade.Sprite;
+  private beach = new BeachModel();
+  private beachArt!: Phaser.GameObjects.Graphics;
+  private oceanArt!: Phaser.GameObjects.Graphics;
+  private slideId = 0;
   private gull?: Phaser.Physics.Arcade.Sprite;
   private warning?: Phaser.GameObjects.Container;
   private lastGroundedAt = 0;
@@ -74,7 +79,7 @@ export class SandyUppyScene extends Phaser.Scene {
 
     this.player = this.physics.add.sprite(360, PLAYER_START_Y, "sandy-idle-a");
     this.player.setCollideWorldBounds(true).setGravityY(PLAYER_GRAVITY).setMaxVelocity(320, 720).setPushable(false).setDepth(5);
-    (this.player.body as Phaser.Physics.Arcade.Body).setSize(27, 65).setOffset(8, 7);
+    (this.player.body as Phaser.Physics.Arcade.Body).setSize(41, 65).setOffset(1, 7);
     this.physics.add.collider(this.player, ground);
 
     this.ball = this.physics.add.sprite(380, 300, "sandy-ball");
@@ -82,9 +87,7 @@ export class SandyUppyScene extends Phaser.Scene {
     this.ball.setGravityY(500);
     this.physics.add.collider(this.player, this.ball, () => this.handlePlayerContact());
 
-    this.sandcastle = this.physics.add.staticSprite(690, GROUND_Y, "sandy-sandcastle").setOrigin(0.5, 1).setDepth(4);
-    this.sandcastle.refreshBody();
-    this.physics.add.overlap(this.player, this.sandcastle, () => this.enterSandcastle());
+    this.beachArt = this.add.graphics().setDepth(4);
 
     this.controls.attach(() => this.togglePause(), () => this.handleJumpRequest(), (direction) => this.triggerSlide(direction));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.controls.detach());
@@ -100,6 +103,8 @@ export class SandyUppyScene extends Phaser.Scene {
 
   private prepareReadyState() {
     this.model.resetToReady();
+    this.beach.reset();
+    this.beachArt.clear();
     this.controls.consumeJump();
     this.controls.clearMovement();
     this.controls.resetGestures();
@@ -123,6 +128,7 @@ export class SandyUppyScene extends Phaser.Scene {
     this.nextGullAt = this.time.now + 6500;
     this.warningAt = this.nextGullAt - 1300;
     this.physics.resume();
+    this.updateBeach(0);
     this.emitSnapshot(true);
   }
 
@@ -168,6 +174,7 @@ export class SandyUppyScene extends Phaser.Scene {
     const phase = this.model.snapshot().phase;
     if (phase !== "start" && phase !== "playing") return;
     if (this.time.now < this.nextSlideAt) return;
+    this.slideId++;
     this.slideDirection = direction === "left" ? -1 : 1;
     this.slideUntil = this.time.now + 260;
     this.nextSlideAt = this.time.now + 470;
@@ -176,6 +183,7 @@ export class SandyUppyScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    this.paintWaves(time / 1000);
     const phase = this.model.snapshot().phase;
     if (phase === "start") {
       this.updateReadyState(time);
@@ -184,6 +192,7 @@ export class SandyUppyScene extends Phaser.Scene {
     if (phase !== "playing") return;
     this.model.tick(delta / 1000);
     const difficulty = this.model.snapshot().difficulty;
+    this.updateBeach(Math.min(delta / 1000, .05));
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     if (body.bottom > GROUND_Y + 1 && body.velocity.y >= 0) {
       this.player.setY(PLAYER_START_Y).setVelocityY(0);
@@ -215,7 +224,7 @@ export class SandyUppyScene extends Phaser.Scene {
     }
 
     const ballBody = this.ball.body as Phaser.Physics.Arcade.Body;
-    if (this.ball.y >= GROUND_Y - 12 && ballBody.velocity.y > 0) this.handleDrop();
+    if (this.ball.y >= GROUND_Y - 12 && ballBody.velocity.y > 0) {this.handleDrop(); if(this.model.snapshot().phase !== "playing") return;}
     const maxBallSpeed = 420 + difficulty * 50;
     ballBody.velocity.x = Phaser.Math.Clamp(ballBody.velocity.x, -maxBallSpeed, maxBallSpeed);
     ballBody.velocity.y = Phaser.Math.Clamp(ballBody.velocity.y, -560, 590 + difficulty * 35);
@@ -273,12 +282,9 @@ export class SandyUppyScene extends Phaser.Scene {
     const now = this.time.now;
     if (now < this.contactCooldownUntil) return;
     this.contactCooldownUntil = now + 360;
-    const recoveryX = Phaser.Math.Clamp(this.player.x + Phaser.Math.Between(-95, 95), 70, WORLD_WIDTH - 70);
-    this.ball.setPosition(recoveryX, GROUND_Y - 13).setVelocity((this.player.x - recoveryX) * 1.35, -425);
-    this.ball.setGravityY(365);
-    this.time.delayedCall(900, () => this.ball?.setGravityY(500));
     if (now < this.obstacleSaveUntil) {
       this.obstacleSaveUntil = 0;
+      this.ball.setPosition(this.player.x, this.player.y - 58).setVelocity(0,-425).setGravityY(500);
       this.audioManager.obstacle();
       this.popText(this.ball.x, GROUND_Y - 45, "SAND SAVE!", "#8de5ef");
       this.emitSnapshot(true);
@@ -294,11 +300,46 @@ export class SandyUppyScene extends Phaser.Scene {
       highScoreStore.save(this.model.snapshot().highScore);
       this.audioManager.gameOver();
     } else {
-      this.player.setAlpha(0.55);
-      this.time.delayedCall(650, () => this.player?.setAlpha(1));
-      this.popText(this.ball.x, GROUND_Y - 45, "DROP!", "#ff5b5b");
+      (this.ball.body as Phaser.Physics.Arcade.Body).enable=false;
+      this.ball.setGravityY(0).setVelocity(0,0).setPosition(this.player.x,this.player.y-54);
+      this.player.setVelocity(0,0).setAlpha(1);
+      this.slideUntil=0; this.controls.clearMovement(); this.controls.consumeJump();
+      this.gull?.destroy(); this.gull=undefined; this.warning?.destroy(); this.warning=undefined;
+      this.nextGullAt=this.time.now+6500; this.warningAt=this.nextGullAt-1300;
+      this.popText(this.player.x,this.player.y-75,"Jump to restart","#ffdd55");
     }
     this.emitSnapshot(true);
+  }
+
+  private updateBeach(dt:number) {
+    this.beach.tick(dt);
+    const grounded=this.player.y>GROUND_Y-85;
+    if(this.time.now<this.slideUntil&&grounded){
+      const points=this.beach.tackle(this.player.x,this.slideId);
+      for(const hit of this.beach.lastTackles)rankedRun.record(hit.kind,this.model.snapshot().secondsSurvived,hit.id);
+      if(points){this.model.reward(points,"Beach cleared!");this.popText(this.player.x,this.player.y-70,"+"+points+" · TACKLE!","#fff1a8");}
+    }else if(grounded&&this.beach.castles.some(c=>Math.abs(c.x-this.player.x)<35))this.enterSandcastle();
+    if(this.beach.catchCan(this.player.x,this.player.y)){
+      const gained=this.model.extraLife();this.popText(this.player.x,this.player.y-60,gained?"GOOSE MODE +1 LIFE":"LIVES FULL","#8de5ef");
+      this.emitSnapshot(true);
+    }
+    const art=this.beachArt;art.clear();
+    for(const c of this.beach.castles){
+      art.fillStyle(c.hp===2?0xc88736:0xe1a64d).fillRect(c.x-22,GROUND_Y-24,44,24).fillRect(c.x-20,GROUND_Y-38,12,17).fillRect(c.x+8,GROUND_Y-38,12,17);
+      art.fillStyle(0x6b492a).fillRect(c.x-5,GROUND_Y-15,10,15);
+      if(c.hp===1)art.lineStyle(3,0x6b492a).lineBetween(c.x-10,GROUND_Y-24,c.x+7,GROUND_Y-4);
+      art.fillStyle(0xffe476).fillRect(c.x-16,GROUND_Y-46,c.hp*15,4);
+    }
+    for(const b of this.beach.builders){
+      art.fillStyle(0xf4b680).fillRect(b.x-7,GROUND_Y-54,14,14);
+      art.fillStyle(0x35baa5).fillRect(b.x-11,GROUND_Y-40,22,22);
+      art.fillStyle(0x223753).fillRect(b.x-10,GROUND_Y-18,7,18).fillRect(b.x+3,GROUND_Y-18,7,18);
+      art.fillStyle(0xfad45c).fillRect(b.x-12,GROUND_Y-58,24,5);
+      art.fillStyle(0xe78a44).fillRect(b.x+13,GROUND_Y-15,13,15);
+      if(b.progress>0){art.fillStyle(0x223753).fillRect(b.x-20,GROUND_Y-68,40,5);art.fillStyle(0xffdf72).fillRect(b.x-20,GROUND_Y-68,40*b.progress,5);}
+    }
+    if(this.beach.goose){const x=this.beach.goose.x;art.fillStyle(0xffffff).fillRect(x-20,104,35,14).fillRect(x+10,87,9,24).fillRect(x+15,83,13,10).fillRect(x-6,90+Math.sin(this.beach.elapsed*12)*9,9,20);art.fillStyle(0xf1a43b).fillRect(x+28,87,10,5);}
+    if(this.beach.can){const {x,y}=this.beach.can;art.fillStyle(0x28b9d5).fillRect(x-9,y-14,18,28);art.fillStyle(0xffffff).fillRect(x-9,y-14,18,3);art.fillStyle(0xf24e40).fillRect(x-6,y-4,12,8);}
   }
 
   private enterSandcastle() {
@@ -325,10 +366,15 @@ export class SandyUppyScene extends Phaser.Scene {
     this.gull = this.physics.add.sprite(fromLeft ? -45 : WORLD_WIDTH + 45, Phaser.Math.Between(135, 275), "sandy-gull").setDepth(5).setFlipX(!fromLeft);
     this.gull.setVelocityX(this.gullDirection * (145 + this.model.snapshot().difficulty * 32));
     this.gull.setImmovable(true);
-    this.physics.add.collider(this.ball, this.gull, () => {
-      if (!this.gull) return;
+    let deflected = false;
+    // One controlled nudge per gull; no moving-body impulse or repeated boosts.
+    this.physics.add.overlap(this.ball, this.gull, () => {
+      if (!this.gull || deflected || this.model.snapshot().phase !== "playing") return;
+      deflected = true;
       const ballBody = this.ball.body as Phaser.Physics.Arcade.Body;
-      this.ball.setVelocity(-ballBody.velocity.x * 0.75 + this.gullDirection * 70, -Math.abs(ballBody.velocity.y) - 80);
+      const sideways = Phaser.Math.Clamp(-ballBody.velocity.x * 0.45 + this.gullDirection * 35, -180, 180);
+      const upward = Phaser.Math.Clamp(Math.abs(ballBody.velocity.y) * 0.65, 230, 330);
+      this.ball.setVelocity(sideways, -upward);
       this.obstacleSaveUntil = this.time.now + 1100;
       this.audioManager.obstacle();
       this.popText(this.gull.x, this.gull.y - 24, "GULL DEFLECTION", "#ffffff");
@@ -356,15 +402,54 @@ export class SandyUppyScene extends Phaser.Scene {
     const art = this.add.graphics();
     art.fillStyle(0x74d9ff).fillRect(0, 0, WORLD_WIDTH, 300);
     art.fillStyle(0xffe66e).fillCircle(790, 92, 46);
-    art.fillStyle(0xffffff, 0.75).fillRect(0, 250, WORLD_WIDTH, 18);
-    art.fillStyle(0x18a8c7).fillRect(0, 268, WORLD_WIDTH, 88);
-    for (let x = 0; x < WORLD_WIDTH; x += 48) art.fillStyle(x % 96 ? 0x83e1ea : 0xc8f6ee).fillRect(x, 286 + (x % 3) * 10, 34, 5);
-    art.fillStyle(0xf4d27b).fillRect(0, 356, WORLD_WIDTH, WORLD_HEIGHT - 356);
+    art.fillStyle(0xf4d27b).fillRect(0, 250, WORLD_WIDTH, WORLD_HEIGHT - 250);
     art.fillStyle(0xe8bd62).fillRect(0, GROUND_Y, WORLD_WIDTH, WORLD_HEIGHT - GROUND_Y);
     for (let x = 20; x < WORLD_WIDTH; x += 57) art.fillStyle(0xd6a652, 0.55).fillRect(x, 410 + (x % 41), 7, 3);
     const clouds = [[110, 82], [155, 70], [205, 88], [515, 115], [560, 104]];
     clouds.forEach(([x, y]) => art.fillStyle(0xffffff, 0.72).fillCircle(x, y, 27));
     this.add.text(22, 20, "SANDY BUMS BEACH", { color: "#073153", fontFamily: "monospace", fontSize: "13px", fontStyle: "bold" }).setAlpha(0.72);
+    this.oceanArt = this.add.graphics().setDepth(1);
+    this.paintWaves(0);
+  }
+
+  private paintWaves(seconds: number) {
+    const art = this.oceanArt;
+    art.clear();
+    const tide = 351 + Math.sin(seconds * .48) * 14;
+    // Pixel-wide strips give the shoreline a soft, stepped arcade silhouette.
+    for (let x = 0; x < WORLD_WIDTH; x += 6) {
+      const shore = Math.round((tide + Math.sin(x * .017 + seconds * 1.1) * 5 + Math.sin(x * .041 - seconds * .7) * 2) / 2) * 2;
+      art.fillStyle(0xc9ae70, .55).fillRect(x, 337, 6, shore + 14 - 337);
+      art.fillStyle(0x148cba).fillRect(x, 250, 6, shore - 250);
+      art.fillStyle(0x20b5cb).fillRect(x, 281, 6, shore - 281);
+      art.fillStyle(0x65d4d5, .8).fillRect(x, shore - 19, 6, 19);
+      art.fillStyle(0xd8fff0, .85).fillRect(x, shore - 3, 6, 4);
+      art.fillStyle(0xffffff, .35).fillRect(x, 250, 6, 2);
+    }
+    // Successive crests travel toward shore, widening and breaking into foam.
+    for (let wave = 0; wave < 3; wave++) {
+      const progress = ((seconds * .13 + wave / 3) % 1);
+      const y = 258 + progress * (tide - 265);
+      const alpha = Math.sin(progress * Math.PI) * .7;
+      for (let x = -24; x < WORLD_WIDTH; x += 6) {
+        const crest = Math.round((y + Math.sin(x * .022 + wave * 2 + seconds * .6) * (2 + progress * 4)) / 2) * 2;
+        const broken = Math.sin(x * .075 + wave * 3 + seconds) > -.55;
+        art.fillStyle(0x087da9, alpha * .4).fillRect(x, crest + 4, 6, 4);
+        if (broken) art.fillStyle(0xe3fff5, alpha).fillRect(x, crest, 6, progress > .6 ? 4 : 2);
+      }
+    }
+    // A quiet visual hint during the final twelve active seconds before a flyover.
+    const untilGoose = this.beach.nextGoose - this.beach.elapsed;
+    if (untilGoose > 0 && untilGoose <= 12) {
+      const x = 130 + (12 - untilGoose) * 42;
+      const y = 309 + Math.sin(seconds * 2.3) * 2;
+      art.lineStyle(2, 0xd8fff0, .65).beginPath().moveTo(x - 36, y + 12).lineTo(x - 17, y + 9).lineTo(x + 22, y + 12).strokePath();
+      art.fillStyle(0x143653).fillRect(x - 19, y - 3, 36, 16).fillRect(x + 9, y - 22, 10, 28).fillRect(x + 13, y - 26, 18, 12);
+      art.fillStyle(0xfff9e9).fillRect(x - 16, y, 30, 10).fillRect(x + 12, y - 20, 4, 24).fillRect(x + 16, y - 23, 12, 6);
+      art.fillStyle(0xf8ae35).fillRect(x + 30, y - 20, 9, 4);
+      art.fillStyle(0x143653).fillRect(x + 24, y - 22, 2, 2);
+      art.fillStyle(0xbcd7dc).fillRect(x - 10, y + 2, 17, 3);
+    }
   }
 
   private createAnimations() {
@@ -408,8 +493,12 @@ export class SandyUppyScene extends Phaser.Scene {
     castle.generateTexture("sandy-sandcastle", 46, 34).destroy();
 
     const gull = this.add.graphics();
-    gull.lineStyle(5, 0xf8f7ec).beginPath().moveTo(2, 13).lineTo(15, 7).lineTo(25, 14).lineTo(35, 7).lineTo(48, 13).strokePath();
-    gull.lineStyle(2, 0x143653).beginPath().moveTo(18, 12).lineTo(25, 17).lineTo(32, 12).strokePath();
-    gull.generateTexture("sandy-gull", 50, 24).destroy();
+    gull.lineStyle(10, 0x143653).beginPath().moveTo(6, 13).lineTo(17, 7).lineTo(27, 14).lineTo(37, 7).lineTo(48, 13).strokePath();
+    gull.lineStyle(5, 0xfffdf2).beginPath().moveTo(6, 13).lineTo(17, 7).lineTo(27, 14).lineTo(37, 7).lineTo(48, 13).strokePath();
+    gull.fillStyle(0x143653).fillEllipse(27, 16, 17, 12);
+    gull.fillStyle(0xfffdf2).fillEllipse(27, 15, 11, 7);
+    gull.fillStyle(0xf8ae35).fillRect(32, 14, 6, 3);
+    gull.generateTexture("sandy-gull", 54, 26).destroy();
   }
 }
+

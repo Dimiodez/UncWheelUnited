@@ -3,6 +3,8 @@ import { createSandyUppyGame } from "./createGame";
 import { InputController, type SandyAction } from "./input/InputController";
 import type { SandySnapshot } from "./simulation/GameModel";
 import "./sandy-uppy.css";
+import { rankedRun } from "./save/RankedRun";
+import Leaderboard from "./Leaderboard";
 
 const initialSnapshot: SandySnapshot = {
   phase: "start",
@@ -17,19 +19,22 @@ const initialSnapshot: SandySnapshot = {
   lastContact: "Ready"
 };
 
-export default function SandyUppyWorkspace() {
+export default function SandyUppyWorkspace({ published = false }: { published?: boolean }) {
   const gameRoot = useRef<HTMLDivElement>(null);
   const controls = useRef(new InputController());
   const game = useRef<ReturnType<typeof createSandyUppyGame> | null>(null);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [scoreStatus,setScoreStatus] = useState('');
 
   useEffect(() => {
     if (!gameRoot.current) return;
+    rankedRun.configure(published,setScoreStatus);
     game.current = createSandyUppyGame(gameRoot.current, controls.current, setSnapshot);
     return () => {
       controls.current.detach();
       game.current?.game.destroy(true);
       game.current = null;
+      rankedRun.configure(false,()=>{});
     };
   }, []);
 
@@ -45,11 +50,19 @@ export default function SandyUppyWorkspace() {
   const releaseMovement = () => controls.current.clearMovement();
 
   return (
-    <section className="sandy-uppy-workspace" aria-label="Sandy Uppy test game">
+    <section className="sandy-uppy-workspace" aria-label={published ? "Sandy Uppy game" : "Sandy Uppy test game"}>
       <header className="sandy-game-heading">
-        <div><p className="eyebrow">TEST REALM · SANDY BUMS FC</p><h2>Sandy Uppy</h2></div>
-        <span>First playable · local high score only</span>
+        <div><p className="eyebrow">{published ? "SANDY BUMS FC · BEACH KEEP-UPS" : "TEST REALM · SANDY BUMS FC"}</p><h2>Sandy Uppy</h2></div>
+        <span>{published ? "Endless beach · Members leaderboard" : "First playable · local high score only"}</span>
       </header>
+
+      {snapshot.phase === "start" && snapshot.secondsSurvived === 0 && <aside className="sandy-start-guide" aria-label="How to play">
+        <strong>Before you hit the beach</strong>
+        <p><b>Move:</b> ← / → or A / D. <b>Jump / start:</b> ↑, W or Space. <b>Slide tackle:</b> double-tap a direction. <b>Pause:</b> P, Esc or the Pause button.</p>
+        <p><b>On touch:</b> hold the arrow pads to move, tap Jump to start or jump, and double-tap an arrow to slide.</p>
+        <p>Keep the ball off the sand! Beachgoers build castles that slow you down. Slide into a builder to stop them (+150), or tackle a finished castle twice to clear it (+250). They arrive and build faster as you survive.</p>
+        <p>A drop costs a life; jump to restart with the ball. Catch a rare Goose Mode can dropped by a flying goose for +1 life (maximum 3).</p>
+      </aside>}
 
       <div className="sandy-game-shell">
         <div className="sandy-game-canvas" ref={gameRoot} />
@@ -73,7 +86,7 @@ export default function SandyUppyWorkspace() {
 
         {snapshot.phase === "gameover" && <div className="sandy-overlay compact">
           <span className="sandy-overline">THE BALL HIT THE SAND</span><h3>Full time</h3>
-          <div className="sandy-final-score"><span>Score <b>{snapshot.score.toLocaleString()}</b></span><span>High <b>{snapshot.highScore.toLocaleString()}</b></span><span>Best combo <b>{snapshot.bestCombo}</b></span></div>
+          <div className="sandy-final-score"><span>Score <b>{snapshot.score.toLocaleString()}</b></span>{!published&&<span>High <b>{snapshot.highScore.toLocaleString()}</b></span>}<span>Best combo <b>{snapshot.bestCombo}</b></span></div>
           <button type="button" onClick={() => command("restart")}>Play again</button>
         </div>}
 
@@ -86,7 +99,8 @@ export default function SandyUppyWorkspace() {
         </div>
       </div>
 
-      <footer className="sandy-test-strip"><strong>Test build</strong><span>Double-tap ←/→ to slide · obstacle misses receive one sand save</span><span>{Math.floor(snapshot.secondsSurvived)}s · {snapshot.lastContact}</span></footer>
+      <footer className="sandy-test-strip"><strong>{published ? "Beach rules" : "Test build"}</strong><span>Slide into builders: +150 · Castles: two slides, +250 · Catch rare Goose Mode cans for +1 life</span><span>{Math.floor(snapshot.secondsSurvived)}s · {snapshot.lastContact}</span></footer>
+      {published&&<><p className="sandy-score-status" role="status">{scoreStatus}</p><Leaderboard/></>}
     </section>
   );
 }

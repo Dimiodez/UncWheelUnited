@@ -15,8 +15,10 @@ describe("SandyGameModel", () => {
     game.start();
     game.registerTouch("Volley");
     expect(game.registerDrop()).toBe(false);
-    expect(game.snapshot()).toMatchObject({ dropsRemaining: 2, combo: 0, phase: "playing" });
+    expect(game.snapshot()).toMatchObject({ dropsRemaining: 2, combo: 0, phase: "start" });
+    game.start();
     expect(game.registerDrop()).toBe(false);
+    game.start();
     expect(game.registerDrop()).toBe(true);
     expect(game.snapshot().phase).toBe("gameover");
   });
