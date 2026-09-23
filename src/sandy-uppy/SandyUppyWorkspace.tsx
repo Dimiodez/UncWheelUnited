@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createSandyUppyGame } from "./createGame";
+import type { createSandyUppyGame } from "./createGame";
 import { InputController, type SandyAction } from "./input/InputController";
 import type { SandySnapshot } from "./simulation/GameModel";
 import "./sandy-uppy.css";
@@ -25,12 +25,20 @@ export default function SandyUppyWorkspace({ published = false }: { published?: 
   const game = useRef<ReturnType<typeof createSandyUppyGame> | null>(null);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [scoreStatus,setScoreStatus] = useState('');
+  const [loading,setLoading] = useState(true);
+  const [loadError,setLoadError] = useState(false);
 
   useEffect(() => {
     if (!gameRoot.current) return;
     rankedRun.configure(published,setScoreStatus);
-    game.current = createSandyUppyGame(gameRoot.current, controls.current, setSnapshot);
+    let disposed = false;
+    void import('./createGame').then(({createSandyUppyGame})=>{
+      if(disposed || !gameRoot.current)return;
+      game.current = createSandyUppyGame(gameRoot.current, controls.current, setSnapshot);
+      setLoading(false);
+    }).catch(()=>{if(!disposed)setLoadError(true);});
     return () => {
+      disposed = true;
       controls.current.detach();
       game.current?.game.destroy(true);
       game.current = null;
@@ -51,6 +59,7 @@ export default function SandyUppyWorkspace({ published = false }: { published?: 
 
   return (
     <section className="sandy-uppy-workspace" aria-label={published ? "Sandy Uppy game" : "Sandy Uppy test game"}>
+      {published && <nav className="sandy-arcade-nav" aria-label="Arcade navigation"><a href="/arcade" target="_top">← Back to Arcade</a></nav>}
       <header className="sandy-game-heading">
         <div><p className="eyebrow">{published ? "SANDY BUMS FC · BEACH KEEP-UPS" : "TEST REALM · SANDY BUMS FC"}</p><h2>Sandy Uppy</h2></div>
         <span>{published ? "Endless beach · Members leaderboard" : "First playable · local high score only"}</span>
@@ -66,6 +75,7 @@ export default function SandyUppyWorkspace({ published = false }: { published?: 
 
       <div className="sandy-game-shell">
         <div className="sandy-game-canvas" ref={gameRoot} />
+        {loading && <div className="sandy-overlay compact" role="status"><p>{loadError ? 'The beach could not load. Refresh to try again.' : 'Getting the beach ready…'}</p></div>}
 
         <div className="sandy-hud" aria-live="polite">
           <div><small>Score</small><strong>{snapshot.score.toLocaleString()}</strong></div>

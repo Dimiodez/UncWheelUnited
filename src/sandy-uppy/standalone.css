@@ -9,6 +9,10 @@ html[data-theme="vintage"] body { background: #e7dcc2; color: #342d23; }
 .sandy-test-strip { padding: 12px; }
 .sandy-game-canvas canvas { display: block; }
 button { font-family: inherit; }
+.sandy-arcade-nav { display: flex; justify-content: flex-end; padding: 0 2px 18px; }
+.sandy-arcade-nav a { color: inherit; font-size: 12px; font-weight: bold; letter-spacing: .1em; text-transform: uppercase; text-decoration: none; padding: 10px 0; }
+.sandy-arcade-nav a:hover { text-decoration: underline; }
+.sandy-arcade-nav a:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
 .sandy-leaderboard { margin-top: 24px; padding: 18px; border: 1px solid #7292a4; border-radius: 8px; }
 .sandy-leaderboard p, .sandy-score-status { font-size: 13px; line-height: 1.6; }
 .sandy-table-wrap { overflow-x: auto; }
