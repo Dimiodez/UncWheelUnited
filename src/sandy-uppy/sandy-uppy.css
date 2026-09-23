@@ -1,0 +1,169 @@
+.sandy-uppy-workspace {
+  --sandy-navy: #082b4d;
+  --sandy-ocean: #18b6ca;
+  --sandy-sun: #ffdc57;
+  --sandy-coral: #f05267;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.sandy-game-heading,
+.sandy-test-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.sandy-game-heading { margin-bottom: 14px; }
+.sandy-game-heading h2 { margin: 2px 0 0; font-size: clamp(32px, 5vw, 58px); }
+.sandy-game-heading > span { color: #7f94b2; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.workspace-tabs button small { margin-left: 5px; padding: 2px 5px; border-radius: 999px; color: #081a2c; background: #ffdc57; font-size: 7px; letter-spacing: .08em; text-transform: uppercase; }
+
+.sandy-game-shell {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 420px;
+  border: 3px solid #f7d764;
+  border-radius: 20px;
+  background: #74d9ff;
+  box-shadow: 0 24px 70px #0009, inset 0 0 0 4px #082b4d;
+  isolation: isolate;
+}
+
+.sandy-game-canvas,
+.sandy-game-canvas canvas { width: 100% !important; height: 100% !important; }
+.sandy-game-canvas canvas { display: block; image-rendering: pixelated; }
+
+.sandy-hud {
+  position: absolute;
+  z-index: 15;
+  inset: 14px 14px auto;
+  display: grid;
+  grid-template-columns: repeat(3, auto) 1fr;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.sandy-hud > div,
+.sandy-hud > button {
+  min-height: 52px;
+  padding: 8px 14px;
+  border: 2px solid #ffffff55;
+  border-radius: 8px;
+  color: #fff;
+  background: #082b4de6;
+  box-shadow: 0 4px 0 #04182b99;
+}
+
+.sandy-hud > div { display: grid; min-width: 105px; }
+.sandy-hud small { color: #8de5ef; font: 900 9px/1 monospace; letter-spacing: .12em; text-transform: uppercase; }
+.sandy-hud strong { margin-top: 5px; font: 900 20px/1 monospace; }
+.sandy-hud strong i { color: var(--sandy-sun); font-style: normal; }
+.sandy-hud > button { justify-self: end; min-width: 74px; pointer-events: auto; cursor: pointer; font: 900 11px monospace; text-transform: uppercase; }
+.sandy-hud > button:disabled { visibility: hidden; }
+.sandy-drops strong { display: flex; gap: 5px; }
+.sandy-drops i { font-size: 16px; filter: drop-shadow(0 2px #0007); transition: opacity .2s, filter .2s; }
+.sandy-drops i.lost { opacity: .22; filter: grayscale(1); }
+
+.sandy-overlay {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 32px;
+  color: #fff;
+  text-align: center;
+  background: linear-gradient(#052c4fb5, #06182dd9);
+  backdrop-filter: blur(3px);
+}
+
+.sandy-title-lockup { transform: rotate(-2deg); text-transform: uppercase; }
+.sandy-title-lockup > span,
+.sandy-overline { color: var(--sandy-sun); font: 900 12px/1 monospace; letter-spacing: .2em; }
+.sandy-overlay h3 { margin: 8px 0 12px; color: #fff3c3; font: 900 clamp(52px, 9vw, 96px)/.74 "Arial Black", Impact, sans-serif; letter-spacing: -.08em; text-shadow: 6px 6px 0 var(--sandy-coral), 10px 10px 0 var(--sandy-navy); text-transform: uppercase; }
+.sandy-overlay.compact h3 { font-size: clamp(42px, 7vw, 76px); line-height: .9; }
+.sandy-overlay > p { margin: 16px 0; font-weight: 800; }
+.sandy-overlay > button { min-width: 190px; margin-top: 18px; padding: 15px 22px; border: 2px solid #fff5ad; border-radius: 8px; color: #092a49; background: var(--sandy-sun); box-shadow: 0 6px 0 #d2762c; cursor: pointer; font: 900 16px monospace; letter-spacing: .06em; text-transform: uppercase; }
+.sandy-overlay > button:active { translate: 0 4px; box-shadow: 0 2px 0 #d2762c; }
+.sandy-control-hint { display: grid; grid-template-columns: auto auto; gap: 7px 18px; padding: 12px 16px; border: 1px solid #ffffff55; border-radius: 8px; background: #041b31aa; font: 800 11px monospace; text-align: left; }
+.sandy-control-hint span:nth-child(odd) { color: var(--sandy-sun); }
+.sandy-final-score { display: flex; gap: 10px; }
+.sandy-final-score span { display: grid; min-width: 110px; padding: 10px; border: 1px solid #ffffff44; border-radius: 8px; background: #041b31bb; color: #8de5ef; font: 800 10px monospace; text-transform: uppercase; }
+.sandy-final-score b { margin-top: 4px; color: #fff; font-size: 20px; }
+
+.sandy-touch-controls { display: none; }
+
+.sandy-start-prompt {
+  position: absolute;
+  z-index: 17;
+  top: 78px;
+  left: 50%;
+  display: grid;
+  gap: 4px;
+  min-width: 310px;
+  padding: 11px 18px;
+  translate: -50% 0;
+  border: 2px solid #fff3a0;
+  border-radius: 10px;
+  color: #fff;
+  background: #082b4de6;
+  box-shadow: 0 5px 0 #03172aaa;
+  text-align: center;
+  pointer-events: none;
+}
+.sandy-start-prompt strong { color: var(--sandy-sun); font: 900 13px/1 monospace; letter-spacing: .1em; text-transform: uppercase; }
+.sandy-start-prompt span { font: 800 10px/1.2 monospace; }
+
+.sandy-test-strip {
+  padding: 12px 15px;
+  border-radius: 0 0 12px 12px;
+  color: #8fa3bf;
+  background: #061326;
+  font-size: 10px;
+}
+.sandy-test-strip strong { color: var(--sandy-sun); letter-spacing: .12em; text-transform: uppercase; }
+
+@media (pointer: coarse) {
+  .sandy-game-shell { min-height: 0; }
+  .sandy-touch-controls { position: absolute; z-index: 22; inset: auto 0 8px; display: block; height: 115px; pointer-events: none; touch-action: none; }
+  .sandy-movement-pads { position: absolute; inset: 20px 14px 0; display: flex; justify-content: space-between; pointer-events: auto; touch-action: none; }
+  .sandy-touch-controls button { display: grid; place-items: center; border: 2px solid #ffffff88; color: #fff; background: #082b4db8; box-shadow: 0 5px 0 #03172a99; user-select: none; touch-action: none; -webkit-user-select: none; }
+  .sandy-movement-pads button { width: 94px; height: 82px; border-radius: 20px; font: 900 42px/1 monospace; pointer-events: none; }
+  .sandy-jump-button { position: absolute; z-index: 2; left: 50%; bottom: 36px; width: 78px; height: 78px; translate: -50% 0; border-radius: 50%; pointer-events: auto; font: 900 33px/1 monospace; }
+  .sandy-jump-button span { font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+}
+
+@media (max-width: 700px) {
+  .sandy-uppy-workspace { padding-top: 10px; }
+  .sandy-game-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .sandy-game-shell { border-width: 2px; border-radius: 12px; }
+  .sandy-hud { inset: 7px 7px auto; grid-template-columns: repeat(3, 1fr) auto; gap: 4px; }
+  .sandy-hud > div, .sandy-hud > button { min-width: 0; min-height: 42px; padding: 6px 7px; border-width: 1px; }
+  .sandy-hud strong { font-size: 14px; }
+  .sandy-hud small { font-size: 7px; }
+  .sandy-drops i { font-size: 11px; }
+  .sandy-overlay { padding: 12px; }
+  .sandy-overlay h3 { margin-bottom: 6px; font-size: clamp(36px, 12vw, 58px); }
+  .sandy-overlay > p { margin: 9px 0; font-size: 12px; }
+  .sandy-overlay > button { min-width: 150px; margin-top: 9px; padding: 10px 16px; font-size: 12px; }
+  .sandy-control-hint { display: none; }
+  .sandy-start-prompt { top: 56px; min-width: 240px; padding: 7px 12px; }
+  .sandy-final-score span { min-width: 80px; padding: 7px; font-size: 8px; }
+  .sandy-final-score b { font-size: 15px; }
+  .sandy-test-strip { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .sandy-game-shell::after { content: "Landscape gives the ball more room"; position: absolute; z-index: 17; right: 8px; bottom: 7px; padding: 5px 8px; border-radius: 999px; color: #fff4b0; background: #082b4dcc; font: 800 8px monospace; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sandy-overlay, .sandy-drops i { transition: none; }
+}
