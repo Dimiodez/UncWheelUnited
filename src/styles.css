@@ -19,6 +19,8 @@ h2 { margin-bottom: 7px; letter-spacing: -.035em; }
 .workspace-tabs { display: flex; gap: 8px; margin-top: 18px; padding: 5px; border: 1px solid #ffffff12; border-radius: 14px; background: #071327; }
 .workspace-tabs button { padding: 10px 16px; border: 0; border-radius: 10px; color: #8497b8; background: transparent; font-weight: 700; }
 .workspace-tabs button.active { color: white; background: linear-gradient(135deg, #e6007e, #7c3cff); box-shadow: 0 8px 24px #e6007e2a; }
+.aggregate-wheel-workspace { margin-top: 18px; }
+.aggregate-wheel-workspace iframe { display: block; width: 100%; min-height: 980px; border: 0; background: transparent; }
 .cup-workspace.hidden { display: none; }
 .draw-stage { min-height: 470px; display: grid; grid-template-columns: 1fr 260px 1fr; gap: 30px; align-items: center; padding: 42px 0; }
 .wheel-card { text-align: center; }

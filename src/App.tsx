@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   abbreviateTeam, addPlayer, addTeam, availablePlayers, eligibleTeams, nextPlayers,
   playerName, resetAssignments, rollNext, sampleSession, teamStatus, undoLast
@@ -42,6 +42,30 @@ const loadSession = (): Session => {
   }
 };
 
+function AggregateByotWorkspace() {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let observer: ResizeObserver | undefined;
+    const fit = () => {
+      const doc = frame.contentDocument;
+      if (!doc?.body) return;
+      doc.documentElement.dataset.theme = document.documentElement.dataset.theme;
+      frame.style.height = `${Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight)}px`;
+      observer?.disconnect();
+      observer = new ResizeObserver(fit);
+      observer.observe(doc.body);
+    };
+    frame.addEventListener("load", fit);
+    if (frame.contentDocument?.readyState === "complete") fit();
+    return () => { frame.removeEventListener("load", fit); observer?.disconnect(); };
+  }, []);
+
+  return <section className="aggregate-wheel-workspace" aria-label="Aggregate BYOT bracket"><iframe ref={frameRef} src="/wheel/aggregate-byot?embed=1" title="Aggregate BYOT bracket" /></section>;
+}
+
 function FullApp() {
   const [session, setSession] = useState<Session>(loadSession);
   const [playerInput, setPlayerInput] = useState("");
@@ -54,7 +78,7 @@ function FullApp() {
   const [teamRotation, setTeamRotation] = useState(0);
   const [displayPlayerIds, setDisplayPlayerIds] = useState<string[] | null>(null);
   const [message, setMessage] = useState("Ready for the draw.");
-  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings" | "drawings" | "func">("cup");
+  const [activeTab, setActiveTab] = useState<"cup" | "captain" | "fantasy" | "standings" | "drawings" | "aggregate" | "func">("cup");
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(session)), [session]);
 
@@ -66,7 +90,7 @@ function FullApp() {
   const assignedCount = session.players.filter((player) => player.status === "assigned").length;
   const totalCapacity = session.teams.reduce((sum, team) => sum + team.capacity, 0);
   const allNormallyFull = normalTeams.length === 0;
-  const workspaceTitle = activeTab === "cup" ? "Cup Night Draw" : activeTab === "captain" ? "Captain Draft" : activeTab === "fantasy" ? "Fantasy Value Draft" : activeTab === "standings" ? "Competitions" : activeTab === "drawings" ? "Live Drawings" : "FUNC Card Studio";
+  const workspaceTitle = activeTab === "cup" ? "Cup Night Draw" : activeTab === "captain" ? "Captain Draft" : activeTab === "fantasy" ? "Fantasy Value Draft" : activeTab === "standings" ? "Competitions" : activeTab === "drawings" ? "Live Drawings" : activeTab === "aggregate" ? "Aggregate BYOT" : "FUNC Card Studio";
 
   const wheelSegments = useMemo(() => {
     const displayed = displayPlayerIds
@@ -258,11 +282,11 @@ function FullApp() {
           <p className="eyebrow">UNC WHEEL UTILITY</p>
           <h1>{workspaceTitle}</h1>
         </div>
-        {activeTab !== "drawings" && activeTab !== "standings" && activeTab !== "func" && <div className="progress-block">
+        {activeTab !== "drawings" && activeTab !== "standings" && activeTab !== "aggregate" && activeTab !== "func" && <div className="progress-block">
           <strong>{assignedCount}</strong><span>assigned</span>
           <strong>{available.length}</strong><span>ready</span>
         </div>}
-        {activeTab !== "drawings" && activeTab !== "standings" && activeTab !== "func" && <label className="add-wheel-control">Add Wheel
+        {activeTab !== "drawings" && activeTab !== "standings" && activeTab !== "aggregate" && activeTab !== "func" && <label className="add-wheel-control">Add Wheel
           <select value="" onChange={(event) => {
             const value = event.target.value;
             if (value === "simple" || value === "specific") setSession({ ...session, positionMode: value });
@@ -279,11 +303,12 @@ function FullApp() {
         <button className={activeTab === "captain" ? "active" : ""} onClick={() => setActiveTab("captain")}>Captain Draft</button>
         <button className={activeTab === "fantasy" ? "active" : ""} onClick={() => setActiveTab("fantasy")}>Fantasy Value Draft</button>
         <button className={activeTab === "standings" ? "active" : ""} onClick={() => setActiveTab("standings")}>Competitions</button>
+        <button className={activeTab === "aggregate" ? "active" : ""} onClick={() => setActiveTab("aggregate")}>Aggregate BYOT</button>
         <button className={activeTab === "drawings" ? "active" : ""} onClick={() => setActiveTab("drawings")}>Live Drawings</button>
         <button className={activeTab === "func" ? "active" : ""} onClick={() => setActiveTab("func")}>FUNC</button>
       </nav>
 
-      {activeTab !== "standings" && activeTab !== "drawings" && activeTab !== "func" && <CompetitionSavePanel
+      {activeTab !== "standings" && activeTab !== "drawings" && activeTab !== "aggregate" && activeTab !== "func" && <CompetitionSavePanel
         format={activeTab === "cup" ? "wheel-draw" : activeTab === "captain" ? "captain-draft" : "fantasy-draft"}
         snapshot={{ kind: "draw", activeTab, session }}
         onLoad={(saved: SavedCompetition) => {
@@ -457,6 +482,7 @@ function FullApp() {
       {(activeTab === "captain" || activeTab === "fantasy") && <DraftWorkspace mode={activeTab} session={session} setSession={setSession} testToolsEnabled={TEST_TOOLS_ENABLED} />}
       {activeTab === "standings" && <StandingsWorkspace />}
       {activeTab === "drawings" && <LiveDrawWorkspace />}
+      {activeTab === "aggregate" && <AggregateByotWorkspace />}
       {activeTab === "func" && <FuncCardWorkspace />}
     </main>
   );
