@@ -1,0 +1,981 @@
+[
+  {
+    "name": "gamestats",
+    "description": "Find the EA game between two league teams and print one sheet per team",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose the competition first",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "team_a",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "team_b",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "timeout",
+        "description": "Minutes to wait for EA updates (default 15)",
+        "type": 4,
+        "min_value": 5,
+        "max_value": 60
+      },
+      {
+        "name": "match_id",
+        "description": "Optional recent head-to-head match",
+        "type": 3,
+        "autocomplete": true
+      },
+      {
+        "name": "demo",
+        "description": "Manager-only: fictional PNG test; no live records changed",
+        "type": 5
+      }
+    ]
+  },
+  {
+    "name": "ufb",
+    "description": "Open the Unc Futból Bot command directory"
+  },
+  {
+    "name": "recruit",
+    "description": "Sign players, recruit for clubs, and manage free agents",
+    "options": [
+      {
+        "name": "sign",
+        "description": "Manager: choose multiple Discord players for your roster",
+        "type": 1,
+        "options": [
+          {
+            "name": "league",
+            "description": "Choose the registered competition before selecting a team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "team",
+            "description": "Your registered team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "channel",
+        "description": "Admin: assign, view or clear a league free-agent channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "competition",
+            "description": "Choose an active league",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "channel",
+            "description": "Discord channel for automatic free-agent posts",
+            "type": 7,
+            "channel_types": [
+              0,
+              5
+            ]
+          },
+          {
+            "name": "clear",
+            "description": "Remove the competition channel assignment",
+            "type": 5
+          }
+        ]
+      },
+      {
+        "name": "club",
+        "description": "Post a recruitment listing for your team",
+        "type": 1,
+        "options": [
+          {
+            "name": "league",
+            "description": "Choose the registered competition before selecting a team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "team",
+            "description": "Your UFB team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "positions",
+            "description": "Positions needed, e.g. GK, CB, CM",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "contact",
+            "description": "Discord contact, e.g. @name",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "pitch",
+            "description": "Short pitch for your club",
+            "type": 3,
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "freeagent",
+        "description": "Post yourself as a free agent in one or more leagues",
+        "type": 1,
+        "options": [
+          {
+            "name": "league_1",
+            "description": "Choose a league created in this server or All active leagues",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "primary",
+            "description": "Your top three positions",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "backup",
+            "description": "Backup positions",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "avoid",
+            "description": "Positions you do not want to play",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "contact",
+            "description": "Discord contact, e.g. @name",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "pitch_availability",
+            "description": "Pitch and availability: about you, days/times and timezone",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "league_2",
+            "description": "Optional second active league",
+            "type": 3,
+            "autocomplete": true
+          },
+          {
+            "name": "league_3",
+            "description": "Optional third active league",
+            "type": 3,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "browse",
+        "description": "View active recruiting posts",
+        "type": 1,
+        "options": [
+          {
+            "name": "type",
+            "description": "What to browse",
+            "type": 3,
+            "required": true,
+            "choices": [
+              {
+                "name": "Clubs recruiting",
+                "value": "club"
+              },
+              {
+                "name": "Free agents",
+                "value": "free_agent"
+              }
+            ]
+          },
+          {
+            "name": "competition",
+            "description": "Filter free agents by active league",
+            "type": 3,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "close",
+        "description": "Remove your active recruiting post",
+        "type": 1,
+        "options": [
+          {
+            "name": "type",
+            "description": "Post to remove",
+            "type": 3,
+            "required": true,
+            "choices": [
+              {
+                "name": "Club post",
+                "value": "club"
+              },
+              {
+                "name": "Free-agent post",
+                "value": "free_agent"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "fa",
+        "description": "Manager free-agent reports",
+        "type": 2,
+        "options": [
+          {
+            "name": "list",
+            "description": "List active free agents grouped by competition",
+            "type": 1
+          }
+        ]
+      },
+      {
+        "name": "renew",
+        "description": "Bump your last free-agent listing and restart its seven days",
+        "type": 1
+      },
+      {
+        "name": "edit",
+        "description": "Change your listing and restart its seven-day window",
+        "type": 1,
+        "options": [
+          {
+            "name": "league_1",
+            "description": "Choose a league created in this server or All active leagues",
+            "type": 3,
+            "required": false,
+            "autocomplete": true
+          },
+          {
+            "name": "primary",
+            "description": "Your top three positions",
+            "type": 3,
+            "required": false
+          },
+          {
+            "name": "backup",
+            "description": "Backup positions",
+            "type": 3,
+            "required": false
+          },
+          {
+            "name": "avoid",
+            "description": "Positions you do not want to play",
+            "type": 3,
+            "required": false
+          },
+          {
+            "name": "contact",
+            "description": "Discord contact, e.g. @name",
+            "type": 3,
+            "required": false
+          },
+          {
+            "name": "pitch_availability",
+            "description": "Pitch and availability: about you, days/times and timezone",
+            "type": 3,
+            "required": false
+          },
+          {
+            "name": "league_2",
+            "description": "Optional second active league",
+            "type": 3,
+            "autocomplete": true,
+            "required": false
+          },
+          {
+            "name": "league_3",
+            "description": "Optional third active league",
+            "type": 3,
+            "autocomplete": true,
+            "required": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "claim",
+    "description": "Claim your EA player identity",
+    "options": [
+      {
+        "name": "player",
+        "description": "EA player name",
+        "type": 3,
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "profile",
+    "description": "View your UFB player profile"
+  },
+  {
+    "name": "register",
+    "description": "Register a team and appoint up to three managers",
+    "options": [
+      {
+        "name": "team",
+        "description": "Team name",
+        "type": 3,
+        "required": true
+      },
+      {
+        "name": "league",
+        "description": "Optional open league; assign one later with /team assign",
+        "type": 3,
+        "autocomplete": true
+      },
+      {
+        "name": "manager_1",
+        "description": "Admin: required; team managers may leave blank to self-register",
+        "type": 6
+      },
+      {
+        "name": "manager_2",
+        "description": "Second manager; administrator only",
+        "type": 6
+      },
+      {
+        "name": "manager_3",
+        "description": "Third manager; administrator only",
+        "type": 6
+      }
+    ]
+  },
+  {
+    "name": "sign",
+    "description": "Sign a player to your team",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose the registered competition before selecting a team",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "team",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "member",
+        "description": "Discord player",
+        "type": 6,
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "release",
+    "description": "Release a player from your team",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose the registered competition before selecting a team",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "team",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "member",
+        "description": "Discord player",
+        "type": 6,
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "roster",
+    "description": "View a UFB roster",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose the registered competition before selecting a team",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "team",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      }
+    ]
+  },
+  {
+    "name": "team",
+    "description": "View, assign, unassign or dissolve a registered UFB team",
+    "options": [
+      {
+        "name": "view",
+        "description": "View league, manager, roster and EA link details",
+        "type": 1,
+        "options": [
+          {
+            "name": "team",
+            "description": "Select the team and competition from suggestions",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "assign",
+        "description": "Manager or UFB Admin: place a team into a league",
+        "type": 1,
+        "options": [
+          {
+            "name": "team",
+            "description": "Choose an assigned or unassigned team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "league",
+            "description": "Destination league",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "confirm",
+            "description": "Confirm this league assignment",
+            "type": 5,
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "unassign",
+        "description": "Manager or UFB Admin: remove a team from its league",
+        "type": 1,
+        "options": [
+          {
+            "name": "team",
+            "description": "Choose an assigned team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "confirm",
+            "description": "Confirm removal from the league",
+            "type": 5,
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "dissolve",
+        "description": "Manager or UFB Admin: permanently close a team",
+        "type": 1,
+        "options": [
+          {
+            "name": "team",
+            "description": "Select the team and competition from suggestions",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "confirm",
+            "description": "Required confirmation that this team should be dissolved",
+            "type": 5,
+            "required": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "linkclub",
+    "description": "Find and link your team’s real EA club",
+    "options": [
+      {
+        "name": "team",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "club",
+        "description": "Exact EA club name",
+        "type": 3,
+        "required": true
+      },
+      {
+        "name": "platform",
+        "description": "EA platform group",
+        "type": 3,
+        "required": true,
+        "choices": [
+          {
+            "name": "PS5 / Xbox Series / PC",
+            "value": "common-gen5"
+          },
+          {
+            "name": "PS4 / Xbox One",
+            "value": "common-gen4"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "matches",
+    "description": "View 3, 6 or 9 recent EA club matches",
+    "options": [
+      {
+        "name": "team",
+        "description": "Select the team and competition from suggestions",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "count",
+        "description": "How many recent games to show (default 3; EA may return fewer)",
+        "type": 4,
+        "required": false,
+        "choices": [
+          {"name":"3 games","value":3},
+          {"name":"6 games","value":6},
+          {"name":"9 games","value":9}
+        ]
+      }
+    ]
+  },
+  {
+    "name": "playerstats",
+    "description": "View a claimed player’s overall FC27 Pro Clubs stats",
+    "options": [
+      {
+        "name": "member",
+        "description": "Discord player (defaults to you)",
+        "type": 6,
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "automode",
+    "description": "Manage automatic per-game club stat sheets",
+    "options": [
+      {
+        "name": "start",
+        "type": 1,
+        "description": "Watch a linked club and post each new game in this channel",
+        "options": [
+          {
+            "name": "team",
+            "description": "Choose a linked team (competition shown in suggestions)",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "idle_minutes",
+            "description": "Stop after this many minutes without a new match (default 60)",
+            "type": 4,
+            "min_value": 15,
+            "max_value": 240
+          }
+        ]
+      },
+      {
+        "name": "stop",
+        "type": 1,
+        "description": "Stop watching this team in this channel",
+        "options": [
+          {
+            "name": "team",
+            "description": "Choose a linked team (competition shown in suggestions)",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "status",
+        "type": 1,
+        "description": "Show active watchers in this channel"
+      }
+    ]
+  },
+  {
+    "name": "standings",
+    "description": "View league standings",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose an official UNC league",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      }
+    ]
+  },
+  {
+    "name": "schedule",
+    "description": "View the official website league schedule",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose a league configured in this Discord server",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      },
+      {
+        "name": "week",
+        "description": "Matchweek; defaults to the next unplayed week",
+        "type": 4,
+        "min_value": 1
+      }
+    ]
+  },
+  {
+    "name": "rsvp",
+    "description": "Create and manage event attendance posts",
+    "options": [
+      {
+        "name": "create",
+        "description": "Post a Yes / Tentative / No event in this channel",
+        "type": 1,
+        "options": [
+          {"name":"name","description":"Event name","type":3,"required":true},
+          {"name":"team","description":"Choose the registered team playing","type":3,"required":true,"autocomplete":true},
+          {"name":"day","description":"Next occurrence of this weekday","type":3,"required":true,"choices":[
+            {"name":"Monday","value":"monday"},{"name":"Tuesday","value":"tuesday"},{"name":"Wednesday","value":"wednesday"},{"name":"Thursday","value":"thursday"},{"name":"Friday","value":"friday"},{"name":"Saturday","value":"saturday"},{"name":"Sunday","value":"sunday"}
+          ]},
+          {"name":"time","description":"Local time, e.g. 7pm or 7:30pm","type":3,"required":true},
+          {"name":"timezone","description":"Choose Central, Eastern, Pacific, or another timezone","type":3,"required":true,"autocomplete":true},
+          {"name":"repeat","description":"Repeat and post each next occurrence automatically","type":3,"required":false,"choices":[
+            {"name":"One time","value":"none"},
+            {"name":"Daily","value":"daily"},
+            {"name":"Weekly","value":"weekly"},
+            {"name":"Every two weeks","value":"biweekly"}
+          ]},
+          {"name":"occurrences","description":"Total dates for recurring events (2–52; default 8)","type":4,"required":false,"min_value":2,"max_value":52},
+          {"name":"reminders","description":"Optional reminder posts before each event","type":3,"required":false,"choices":[
+            {"name":"No reminders","value":"none"},
+            {"name":"1 hour before","value":"1h"},
+            {"name":"24 hours before","value":"24h"},
+            {"name":"24 hours and 1 hour before","value":"both"}
+          ]},
+          {"name":"thread","description":"Open a discussion thread for each event night","type":5,"required":false}
+        ]
+      },
+      {"name":"list","description":"Privately list upcoming RSVP events in this server","type":1},
+      {"name":"cancel","description":"Creator or UFB admin: stop an event and its recurrence","type":1,"options":[
+        {"name":"event_id","description":"ID shown on the post or in /rsvp list","type":4,"required":true,"min_value":1}
+      ]}
+    ]
+  },
+  {
+    "name": "leaguestats",
+    "description": "Top five league players: goals, assists and average match rating",
+    "options": [
+      {
+        "name": "league",
+        "description": "Choose a league configured in this Discord server",
+        "type": 3,
+        "required": true,
+        "autocomplete": true
+      }
+    ]
+  },
+  {
+    "name": "info",
+    "description": "Owner-only UFB system information and data controls",
+    "options": [
+      {
+        "name": "reset",
+        "description": "Owner only: preview and reset saved UFB data for this Discord",
+        "type": 1
+      }
+    ]
+  },
+  {
+    "name": "setup",
+    "description": "UFB staff setup, defaults, channels and feed diagnostics",
+    "options": [
+      {
+        "name": "create",
+        "description": "Create an official or custom UFB league",
+        "type": 1,
+        "options": [
+          {
+            "name": "type",
+            "description": "Competition type",
+            "type": 3,
+            "required": true,
+            "choices": [
+              {
+                "name": "Official 6v6 league",
+                "value": "league_6v6"
+              },
+              {
+                "name": "Official 10v10 league",
+                "value": "league_10v10"
+              },
+              {
+                "name": "Custom league",
+                "value": "league_custom"
+              }
+            ]
+          },
+          {
+            "name": "name",
+            "description": "Competition name, for example UNC 6v6 Season 2",
+            "type": 3,
+            "required": true,
+            "max_length": 80
+          },
+          {
+            "name": "team_size",
+            "description": "Custom league only: players per side, such as 1 or 3",
+            "type": 4,
+            "min_value": 1,
+            "max_value": 11
+          }
+        ]
+      },
+      {
+        "name": "competitions",
+        "description": "List configured official and custom leagues",
+        "type": 1
+      },
+      {
+        "name": "leaguesource",
+        "description": "Link, inspect or clear this league's website statistics feed",
+        "type": 1,
+        "options": [
+          {"name":"league","description":"League in this Discord server","type":3,"required":true,"autocomplete":true},
+          {"name":"url","description":"Public UFL website season-data JSON URL","type":3},
+          {"name":"clear","description":"Remove the linked website source","type":5}
+        ]
+      },
+      {
+        "name": "team",
+        "description": "Create an admin-managed team, optionally without a league",
+        "type": 1,
+        "options": [
+          {
+            "name": "name",
+            "description": "Team name",
+            "type": 3,
+            "required": true,
+            "max_length": 80
+          },
+          {
+            "name": "league",
+            "description": "Optional league; assign one later with /team assign",
+            "type": 3,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "removeleague",
+        "description": "Archive a league and safely unassign its active teams",
+        "type": 1,
+        "options": [
+          {
+            "name": "league",
+            "description": "League to remove from active setup",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "confirm",
+            "description": "Confirm league removal and team unassignment",
+            "type": 5,
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "registration",
+        "description": "Open, close or schedule registration reminders",
+        "type": 1,
+        "options": [
+          {
+            "name": "league",
+            "description": "Choose the registered competition before selecting a team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "state",
+            "description": "Registration state",
+            "type": 3,
+            "required": true,
+            "choices": [
+              {
+                "name": "Open",
+                "value": "open"
+              },
+              {
+                "name": "Closed",
+                "value": "closed"
+              }
+            ]
+          },
+          {
+            "name": "closes_in_days",
+            "description": "Optional automatic closing deadline, 1–365 days from now",
+            "type": 4,
+            "min_value": 1,
+            "max_value": 365
+          },
+          {
+            "name": "reminder_every_days",
+            "description": "Reminder frequency before closing; defaults to daily",
+            "type": 4,
+            "choices": [
+              {
+                "name": "Daily",
+                "value": 1
+              },
+              {
+                "name": "Every 2 days",
+                "value": 2
+              },
+              {
+                "name": "Every 3 days",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "name": "channel",
+            "description": "Channel for reminders and the closing notice; defaults to this channel",
+            "type": 7,
+            "channel_types": [
+              0,
+              5
+            ]
+          }
+        ]
+      },
+      {
+        "name": "roles",
+        "description": "Choose UFB Administrator, Moderator and Team Manager roles",
+        "type": 1
+      },
+      {
+        "name": "helpcenter",
+        "description": "Create or refresh the categorized UFB help channel and threads",
+        "type": 1
+      },
+      {
+        "name": "patches",
+        "description": "Create or refresh the automatic official FC 27 patch-notes channel",
+        "type": 1
+      },
+      {
+        "name": "panel",
+        "description": "Private administrator settings panel",
+        "type": 1
+      },
+      {
+        "name": "channel",
+        "description": "Assign, view or clear a competition free-agent channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "competition",
+            "description": "Choose an active league",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "channel",
+            "description": "Discord channel for automatic free-agent posts",
+            "type": 7,
+            "channel_types": [
+              0,
+              5
+            ]
+          },
+          {
+            "name": "clear",
+            "description": "Remove the competition channel assignment",
+            "type": 5
+          }
+        ]
+      },
+      {
+        "name": "checkfeed",
+        "description": "Validate the configured match feed for a linked team",
+        "type": 1,
+        "options": [
+          {
+            "name": "team",
+            "description": "Choose a linked team",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          }
+        ]
+      },
+      {
+        "name": "health",
+        "description": "Check links, feed status, jobs and publishing channels",
+        "type": 1
+      }
+    ]
+  }
+]

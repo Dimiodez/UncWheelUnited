@@ -1,0 +1,35 @@
+# Unc Futból Bot
+
+The bot source lives alongside the UFL website in this workspace. The website source is in `../.official-site`. The Worker remains `unc-futbol-bot`, using its existing D1 database and Discord application; moving source does not change Discord configuration.
+
+Install dependencies with `npm install` (Node 24+ for the SQLite regression tests). Run `npm run check` and `npm test`. Local-only credentials belong in ignored `.dev.vars`; use `.dev.vars.example` as the template. Never commit tokens.
+
+Deploy the existing database migration with `wrangler d1 migrations apply unc-futbol-bot --remote`, then `wrangler deploy --keep-vars`. The scheduled Worker sync publishes global Guild Install commands to every server that installs the application. For a manual sync, run `npm run commands:register` after loading the Discord application ID and bot token; `DISCORD_GUILD_ID` is optional and is used only to clear legacy test-guild command copies. Deploy the website **from inside `.official-site`** with `wrangler pages deploy . --project-name uncfutbolleague-com --branch master` so its Functions are bundled. Running from the parent directory omits Functions and breaks routing/authentication.
+
+FC27 club lookup uses `allTimeLeaderboard/search`. EA currently denies direct Cloudflare Worker egress, so `EA_API_BASE_URL` must point at a trusted HTTPS relay exposing `/clubs/search` and `/clubs/:clubId/matches`. Match polling reads league and playoff feeds, deduplicates by EA match ID, treats EA's returned player collection as human players, and leaves statistics that are absent from EA visibly unavailable.
+
+Each Discord server owns its own leagues and teams. After `/setup create`, an administrator can use `/setup leaguesource` to link that league to its matching UFL website season-data JSON URL. `/standings`, `/schedule`, and `/leaguestats` read the selected league's configured source; newly created leagues are deliberately unlinked until an administrator verifies the correct season. `/setup leaguesource clear:true` removes the link without deleting the league.
+
+`/setup roles` lets a Discord administrator or the bot application's owner map one UFB Administrator role, up to four Moderator roles, and up to three Team Manager roles. Each multi-role selection replaces that staff level's entire list; existing roles are preselected and either list can be cleared with a button. Existing single-role mappings migrate into the new lists automatically. A member holding any configured role receives that level's bot access. The verified bot application owner can use every published command in any server where UFB is installed, regardless of their server roles. The bot must still have the relevant Discord channel permissions, and destructive commands retain their confirmations. Workshop-only commands remain unpublished.
+
+`/schedule` remains the official league-fixtures command. `/rsvp` is the single attendance command for one night or a recurring series: `/rsvp create name:Training Night team:Roma FC day:Tuesday time:7pm timezone:Central repeat:weekly occurrences:8 reminders:both thread:true`. Only the selected team's manager or a UFB Moderator/Administrator can create an event that pings everyone. Choose a registered team from Discord's suggestions; the day means the next occurrence of that weekday, and time accepts `7pm`, `7:30pm`, or `19:00`. The timezone picker offers familiar names (for example Central) and accepts valid IANA names. Discord displays the start in each reader's timezone. Members can choose Yes, Tentative, or No and update their answer before the event starts. The initial event and each recurring event ping `@everyone`. Optional 24-hour and 1-hour reminders put details in the event's discussion thread and a short `@everyone` link in the main channel; if the thread is unavailable, the full reminder goes in the channel. Without a thread, the reminder goes in the channel. The bot needs Mention Everyone permission in the event channel; new installs request it, while existing server admins may need to grant it manually. RSVP button updates and thread-link edits do not ping again. `/rsvp list` and `/rsvp cancel event_id:12` manage events. Recurring events post the next occurrence when the previous one starts. The old `/matchnight` slash command is retired, but its existing post buttons remain functional; positions and formations are reserved for a later version.
+
+`/matches team:<registered team> count:9` requests up to nine recent FC27 games, with 3 and 6 also available. The EA relay may return fewer games; the command never invents missing results.
+
+## FC 27 patch notes
+
+`/setup patches` is available to administrators in every installed Discord server. Each server runs it once to create or reuse its own read-only `#fc27-patch-notes` channel and post the newest update. The existing scheduled Worker checks configured servers every 15 minutes, posts newly published EA FC 27 patch cards, and edits an existing post if EA changes its notes or confirms it live. The title filter admits versioned patches, title updates, hotfixes, bug fixes, and update notes; it excludes community updates, spotlights, feedback, rewards, and developer features. It also checks EA's official Steam publisher announcements for a matching live confirmation. It never relies on PatchBot or the EA match-data relay. The primary source is the [EA SPORTS FC Tracker](https://trello.com/b/keigLn6R/ea-sports-fc-tracker), linked from EA's own FC 27 Game Info Hub. EA Forums currently challenges unattended Worker requests, so polling its HTML directly is unreliable. No `@everyone` ping is sent. Re-running setup does not make a duplicate channel or post. `/info reset` removes only that server's saved patch-channel configuration and delivery tracking, but leaves the Discord channel and already-published messages in place like other bot channels.
+
+## Draft smoke test
+
+1. Manager: `/draft create`, then add two sides with `/draft captain`.
+2. Players: `/draft join` and choose the draft suggestion.
+3. Organizer: `/draft start`.
+4. Captains: `/draft pick`; select an available player on your turn.
+5. Inspect `/draft pool`, `/draft squads` and `/draft recap`. Reusing an old picker must fail.
+
+## Cup smoke test
+
+Create a BYOT cup, register teams, then organizer `/cup close`. For league + knockout, select an even `qualifiers` count manually. View `/cup fixtures` for fixture IDs. A participating manager uses `/cup submit`; the opposing manager uses `/cup confirm` to confirm or dispute. The creator uses `/cup resolve` for disputed results. Confirmed results update league tables and generate the next knockout round. A tie at the qualifying cutoff requires organizer-selected qualifying entry IDs via `/cup advance seeds`.
+
+Panels provide private quick-action buttons and competition state. Full guided builders, announcements, server defaults, draft match statistics, expanded stat images and FC27 ingestion remain planned and are labelled in website documentation.
