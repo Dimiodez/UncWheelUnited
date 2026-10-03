@@ -33,6 +33,23 @@ const match=(id:string,playedAt:number,players:Array<{id:string;name:string;goal
 });
 
 describe('FC Sandy Bums historical archive',()=>{
+ it('loads older matches directly and falls back to saved appearances without inventing stats',async()=>{
+  const env={DB:testDatabase()} as Env;
+  const now=Date.parse('2026-10-03T01:00:00Z');
+  const games=Array.from({length:7},(_,index)=>match(`older-${index}`,now-index*60000,[{id:'odez',name:'Odez',goals:1,assists:2,rating:'8.0'}]));
+  await syncSandyBums(env,now,async()=>games);
+  const selected=await (await sandyBumsArchive(env,'all','older-6')).json() as {matches:Array<{match_id:string;details:ClubMatch}>};
+  expect(selected.matches).toHaveLength(1);
+  expect(selected.matches[0].match_id).toBe('older-6');
+  expect(selected.matches[0].details.clubs[0].players[0].stats[3]).toBe('2');
+  await env.DB.prepare('DELETE FROM house_club_match_details WHERE club_id=? AND match_id=?').bind('43521','older-6').run();
+  const fallback=await (await sandyBumsArchive(env,'all','older-6')).json() as {matches:Array<{details:ClubMatch&{partial:boolean}}>};
+  expect(fallback.matches[0].details.partial).toBe(true);
+  expect(fallback.matches[0].details.clubs[0].players[0].stats.slice(1,5)).toEqual(['8.0','1','—','2']);
+  expect((await mountainsArchive(env,'all','older-6')).status).toBe(200);
+  const other=await (await mountainsArchive(env,'all','older-6')).json() as {matches:unknown[]};
+  expect(other.matches).toHaveLength(0);
+ });
  it('retains full sheets for both teams, including MotM and disconnected rows',async()=>{
   const env={DB:testDatabase()} as Env;
   const now=Date.parse('2026-10-03T01:00:00Z');

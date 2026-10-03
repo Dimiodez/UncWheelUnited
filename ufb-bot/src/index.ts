@@ -37,8 +37,8 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === 'GET' && url.pathname === '/health') return json({ service: 'ufb', status: 'ok', environment: env.ENVIRONMENT,release:'20260922-league-sources1',liveMatchFeed:env.EA_MATCHES_ENABLED==='true'&&!!(env.EA_MATCH_FEED_URL||env.EA_API_BASE_URL)?'configured':'disabled' });
-    if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-sandy-bums') return sandyBumsArchive(env,url.searchParams.get('month')??'all');
-    if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-mountains') return mountainsArchive(env,url.searchParams.get('month')??'all');
+    if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-sandy-bums') return sandyBumsArchive(env,url.searchParams.get('month')??'all',url.searchParams.get('match')??'');
+    if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-mountains') return mountainsArchive(env,url.searchParams.get('month')??'all',url.searchParams.get('match')??'');
     if (request.method !== 'POST' || url.pathname !== '/interactions') return new Response('Not found', { status: 404 });
     if (!env.DISCORD_PUBLIC_KEY) return json({ error: 'DISCORD_PUBLIC_KEY is not configured.' }, 503);
     const signature = request.headers.get('x-signature-ed25519');

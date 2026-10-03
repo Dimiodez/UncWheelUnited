@@ -67,12 +67,13 @@ export const syncMountains=(env:Env,now=Date.now(),feed=liveFeed(env))=>syncHous
 type MatchRow={match_id:string;played_at:number;opponent_name:string;goals_for:number;goals_against:number};
 type PlayerRow={player_id:string;latest_name:string;appearances:number;goals:number;assists:number;average_rating:number|null};
 
-export async function houseClubArchive(env:Env,clubId:string,clubName:string,month:string){
+export async function houseClubArchive(env:Env,clubId:string,clubName:string,month:string,matchId=''){
  const valid=month==='all'||/^\d{4}-(0[1-9]|1[0-2])$/.test(month);
  if(!valid)return new Response(JSON.stringify({error:'Invalid month.'}),{status:400,headers:{'content-type':'application/json'}});
- const filter=month==='all'?'':'AND local_month=?';
+ if(matchId&&!/^[a-zA-Z0-9_-]{1,64}$/.test(matchId))return Response.json({error:'Invalid match.'},{status:400});
+ const filter=matchId?'AND match_id=?':month==='all'?'':'AND local_month=?';
  const matchesQuery=env.DB.prepare(`SELECT match_id,played_at,opponent_name,goals_for,goals_against FROM house_club_matches WHERE club_id=? ${filter} ORDER BY played_at DESC LIMIT 1000`);
- const matches=await (month==='all'?matchesQuery.bind(clubId):matchesQuery.bind(clubId,month)).all<MatchRow>();
+ const matches=await (matchId?matchesQuery.bind(clubId,matchId):month==='all'?matchesQuery.bind(clubId):matchesQuery.bind(clubId,month)).all<MatchRow>();
  const playersQuery=env.DB.prepare(`SELECT p.player_id,p.latest_name,COUNT(a.match_id) AS appearances,
   COALESCE(SUM(a.goals),0) AS goals,COALESCE(SUM(a.assists),0) AS assists,
   ROUND(AVG(a.rating),2) AS average_rating FROM house_club_players p
@@ -92,5 +93,5 @@ export async function houseClubArchive(env:Env,clubId:string,clubName:string,mon
  }));
  return new Response(JSON.stringify({clubId,clubName,timeZone:'America/Chicago',month,months:months.results.map(row=>row.local_month),lastSyncedAt:sync?.last_success_at??null,syncDelayed:!!sync?.last_error,matches:matches.results.map((match,index)=>index<5?detailed[index]:match),players:players.results}),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=60'}});
 }
-export const sandyBumsArchive=(env:Env,month:string)=>houseClubArchive(env,SANDY_BUMS_ID,'FC Sandy Bums',month);
-export const mountainsArchive=(env:Env,month:string)=>houseClubArchive(env,MOUNTAINS_ID,'FC Mountains',month);
+export const sandyBumsArchive=(env:Env,month:string,matchId='')=>houseClubArchive(env,SANDY_BUMS_ID,'FC Sandy Bums',month,matchId);
+export const mountainsArchive=(env:Env,month:string,matchId='')=>houseClubArchive(env,MOUNTAINS_ID,'FC Mountains',month,matchId);
