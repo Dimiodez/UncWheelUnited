@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 // @ts-expect-error Node types are supplied by the test runtime, not the Worker build.
 import {DatabaseSync} from 'node:sqlite';
 import {describe,expect,it} from 'vitest';
-import {centralMonth,mountainsArchive,sandyBumsArchive,syncMountains,syncSandyBums} from '../src/house-club-history';
+import {centralMonth,mountainsArchive,sandyBumsArchive,syncMountains,syncSandyBums,syncHouseClub} from '../src/house-club-history';
 import type {ClubMatch} from '../src/match-watchers';
 import type {Env} from '../src/types';
 
@@ -33,6 +33,18 @@ const match=(id:string,playedAt:number,players:Array<{id:string;name:string;goal
 });
 
 describe('FC Sandy Bums historical archive',()=>{
+ it('allows a manual check before the scheduled interval, with a shared two-minute cooldown',async()=>{
+  const env={DB:testDatabase()} as Env,now=Date.parse('2026-10-03T01:00:00Z');
+  let calls=0;
+  const feed=async()=>{calls++;return [match('manual',now,[{id:'odez',name:'Odez',goals:1,assists:2,rating:'8.0'}])];};
+  await syncSandyBums(env,now,feed);
+  expect(await syncHouseClub(env,'43521','FC Sandy Bums',now+60000,feed,true)).toMatchObject({skipped:true});
+  expect(await syncHouseClub(env,'43521','FC Sandy Bums',now+121000,feed,true)).toMatchObject({skipped:false});
+  expect(await syncHouseClub(env,'43521','FC Sandy Bums',now+122000,feed,true)).toMatchObject({skipped:true});
+  expect(await syncMountains(env,now+122000,feed)).toMatchObject({skipped:false});
+  expect(calls).toBe(3);
+  expect(await syncSandyBums(env,now+600000,feed)).toMatchObject({skipped:true});
+ });
  it('loads older matches directly and falls back to saved appearances without inventing stats',async()=>{
   const env={DB:testDatabase()} as Env;
   const now=Date.parse('2026-10-03T01:00:00Z');

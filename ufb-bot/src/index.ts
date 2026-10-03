@@ -13,7 +13,7 @@ import {captureOriginalRsvpPost,processRecurringSchedules,processRsvpReminders} 
 import {refreshExistingHelpCenters} from './help-center';
 import {refreshBotOwners,withBotOwner} from './permissions';
 import {pollPatchUpdates} from './patch-notes';
-import {sandyBumsArchive,mountainsArchive,syncSandyBums,syncMountains} from './house-club-history';
+import {sandyBumsArchive,mountainsArchive,syncSandyBums,syncMountains,checkHouseClub} from './house-club-history';
 import type { DiscordInteraction, Env } from './types';
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -36,6 +36,7 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {ctx.waitUntil(pollWatchers(env));ctx.waitUntil(syncSandyBums(env).catch(error=>console.error(JSON.stringify({event:'sandy_bums_sync_failed',error:String(error)}))));ctx.waitUntil(syncMountains(env).catch(error=>console.error(JSON.stringify({event:'mountains_sync_failed',error:String(error)}))));ctx.waitUntil(expireFreeAgents(env).then(()=>publishFreeAgents(env)));ctx.waitUntil(processRegistrationSchedules(env));ctx.waitUntil(processRecurringSchedules(env));ctx.waitUntil(processRsvpReminders(env));ctx.waitUntil(pollPatchUpdates(env));ctx.waitUntil(refreshBotOwners(env));ctx.waitUntil(syncDiscordCommands(env).then(()=>auditDiscordCommands(env)).catch(error=>console.error(JSON.stringify({event:'discord_command_sync_or_audit_failed',error:String(error)}))));ctx.waitUntil(refreshExistingHelpCenters(env).catch(error=>console.error(JSON.stringify({event:'help_center_refresh_failed',error:String(error)}))));},
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    if(request.method==='POST'&&['/api/house-clubs/fc-sandy-bums','/api/house-clubs/fc-mountains'].includes(url.pathname))return checkHouseClub(env,url.pathname.split('/').pop()!);
     if (request.method === 'GET' && url.pathname === '/health') return json({ service: 'ufb', status: 'ok', environment: env.ENVIRONMENT,release:'20260922-league-sources1',liveMatchFeed:env.EA_MATCHES_ENABLED==='true'&&!!(env.EA_MATCH_FEED_URL||env.EA_API_BASE_URL)?'configured':'disabled' });
     if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-sandy-bums') return sandyBumsArchive(env,url.searchParams.get('month')??'all',url.searchParams.get('match')??'');
     if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-mountains') return mountainsArchive(env,url.searchParams.get('month')??'all',url.searchParams.get('match')??'');

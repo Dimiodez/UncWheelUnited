@@ -45,10 +45,11 @@ export function houseClubStatements(db:D1Database,match:ClubMatch,clubId:string)
 }
 export const sandyBumsStatements=(db:D1Database,match:ClubMatch)=>houseClubStatements(db,match,SANDY_BUMS_ID);
 
-export async function syncHouseClub(env:Env,clubId:string,clubName:string,now=Date.now(),feed=liveFeed(env)){
+export async function syncHouseClub(env:Env,clubId:string,clubName:string,now=Date.now(),feed=liveFeed(env),manual=false){
  const lease=await env.DB.prepare(`UPDATE house_club_sync SET lease_until=?,last_attempt_at=?
-  WHERE club_id=? AND lease_until<? AND (last_success_at IS NULL OR last_success_at<=?)`)
-  .bind(now+LEASE_MS,now,clubId,now,now-SYNC_INTERVAL_MS).run();
+  WHERE club_id=? AND lease_until<? AND (last_success_at IS NULL OR last_success_at<=?)
+  AND (?=0 OR last_attempt_at IS NULL OR last_attempt_at<=?)`)
+  .bind(now+LEASE_MS,now,clubId,now,now-(manual?120000:SYNC_INTERVAL_MS),manual?1:0,now-120000).run();
  if(!lease.meta.changes)return {skipped:true};
  try{
   const team:LinkedTeam={id:0,name:clubName,manager_discord_id:'',ea_club_id:clubId,ea_platform:'common-gen5',ea_crest_url:null};
@@ -63,6 +64,15 @@ export async function syncHouseClub(env:Env,clubId:string,clubName:string,now=Da
 }
 export const syncSandyBums=(env:Env,now=Date.now(),feed=liveFeed(env))=>syncHouseClub(env,SANDY_BUMS_ID,'FC Sandy Bums',now,feed);
 export const syncMountains=(env:Env,now=Date.now(),feed=liveFeed(env))=>syncHouseClub(env,MOUNTAINS_ID,'FC Mountains',now,feed);
+
+export async function checkHouseClub(env:Env,slug:string){
+ const club=slug==='fc-sandy-bums'?[SANDY_BUMS_ID,'FC Sandy Bums']:slug==='fc-mountains'?[MOUNTAINS_ID,'FC Mountains']:null;
+ if(!club)return Response.json({error:'Unknown house club.'},{status:404});
+ try{
+  const result=await syncHouseClub(env,club[0],club[1],Date.now(),liveFeed(env),true);
+  return Response.json({checked:!result.skipped,message:result.skipped?'A check ran within the last two minutes or is already running. Showing the latest saved results.':'Match check complete. Results and player totals have been refreshed.'},{headers:{'cache-control':'no-store'}});
+ }catch{return Response.json({error:'The EA match feed is temporarily unavailable. Saved stats have not been removed. Try again shortly.'},{status:502,headers:{'cache-control':'no-store'}});}
+}
 
 type MatchRow={match_id:string;played_at:number;opponent_name:string;goals_for:number;goals_against:number};
 type PlayerRow={player_id:string;latest_name:string;appearances:number;goals:number;assists:number;average_rating:number|null};
