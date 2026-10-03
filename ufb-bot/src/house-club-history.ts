@@ -38,6 +38,9 @@ export function houseClubStatements(db:D1Database,match:ClubMatch,clubId:string)
    rating=excluded.rating`)
    .bind(clubId,match.id,player.id,player.name,nonnegativeStat(player.stats[2]),nonnegativeStat(player.stats[4]),validRating(player.stats[1])));
  }
+ statements.push(db.prepare(`INSERT INTO house_club_match_details (club_id,match_id,details_json) VALUES (?,?,?)
+  ON CONFLICT(club_id,match_id) DO UPDATE SET details_json=excluded.details_json`)
+  .bind(clubId,match.id,JSON.stringify({...match,clubs:match.clubs.map(team=>({...team,players:team.players.filter(player=>player.human)}))})));
  return statements;
 }
 export const sandyBumsStatements=(db:D1Database,match:ClubMatch)=>houseClubStatements(db,match,SANDY_BUMS_ID);
@@ -79,7 +82,15 @@ export async function houseClubArchive(env:Env,clubId:string,clubName:string,mon
  const players=await (month==='all'?playersQuery.bind(clubId):playersQuery.bind(clubId,month,clubId)).all<PlayerRow>();
  const months=await env.DB.prepare('SELECT DISTINCT local_month FROM house_club_matches WHERE club_id=? ORDER BY local_month DESC').bind(clubId).all<{local_month:string}>();
  const sync=await env.DB.prepare('SELECT last_success_at,last_error FROM house_club_sync WHERE club_id=?').bind(clubId).first<{last_success_at:number|null;last_error:string|null}>();
- return new Response(JSON.stringify({clubId,clubName,timeZone:'America/Chicago',month,months:months.results.map(row=>row.local_month),lastSyncedAt:sync?.last_success_at??null,syncDelayed:!!sync?.last_error,matches:matches.results,players:players.results}),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=60'}});
+ // Only send detailed sheets for the five visible results, not the entire archive.
+ const recent=matches.results.slice(0,5);
+ const detailed=await Promise.all(recent.map(async match=>{
+  const saved=await env.DB.prepare('SELECT details_json FROM house_club_match_details WHERE club_id=? AND match_id=?').bind(clubId,match.match_id).first<{details_json:string}>();
+  if(saved)return {...match,details:JSON.parse(saved.details_json)};
+  const rows=await env.DB.prepare('SELECT player_id,player_name,goals,assists,rating FROM house_club_appearances WHERE club_id=? AND match_id=?').bind(clubId,match.match_id).all<{player_id:string;player_name:string;goals:number;assists:number;rating:number|null}>();
+  return {...match,details:{partial:true,clubs:[{id:clubId,name:clubName,players:rows.results.map(player=>({id:player.player_id,name:player.player_name,stats:['—',player.rating===null?'—':player.rating.toFixed(1),String(player.goals),'—',String(player.assists),'—','—','—','—','—','—','—','—','—']}))}]}};
+ }));
+ return new Response(JSON.stringify({clubId,clubName,timeZone:'America/Chicago',month,months:months.results.map(row=>row.local_month),lastSyncedAt:sync?.last_success_at??null,syncDelayed:!!sync?.last_error,matches:matches.results.map((match,index)=>index<5?detailed[index]:match),players:players.results}),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=60'}});
 }
 export const sandyBumsArchive=(env:Env,month:string)=>houseClubArchive(env,SANDY_BUMS_ID,'FC Sandy Bums',month);
 export const mountainsArchive=(env:Env,month:string)=>houseClubArchive(env,MOUNTAINS_ID,'FC Mountains',month);

@@ -64,6 +64,7 @@ try{
  const sql=normalized.flatMap(match=>houseClubStatements(capture,match,clubId).map(sqlFor)).join('\n');
  const sqlite=new DatabaseSync(':memory:');
  sqlite.exec(await readFile('migrations/0028_sandy_bums_history.sql','utf8'));
+ sqlite.exec(await readFile('migrations/0031_house_match_details.sql','utf8'));
  sqlite.exec(sql);
  const count=sqlite.prepare('SELECT COUNT(*) AS n FROM house_club_matches').get().n;
  const players=sqlite.prepare('SELECT COUNT(*) AS n FROM house_club_players').get().n;
@@ -76,9 +77,13 @@ try{
   const sqlFile=join(temp,'backfill.sql');
   await writeFile(sqlFile,sql,'utf8');
   const wrangler=resolve('node_modules/wrangler/bin/wrangler.js');
-  const result=spawnSync(process.execPath,[wrangler,'d1','execute','unc-futbol-bot','--remote','--file',sqlFile],{stdio:'inherit',cwd:process.cwd(),timeout:120000});
-  if(result.error)throw result.error;
-  if(result.status!==0)throw new Error(`Wrangler exited ${result.status}`);
+  // Query batches avoid the separate D1 import permission and Windows argument limits.
+  const statements=normalized.flatMap(match=>houseClubStatements(capture,match,clubId).map(sqlFor));
+  for(let index=0;index<statements.length;index+=4){
+   const result=spawnSync(process.execPath,[wrangler,'d1','execute','unc-futbol-bot','--remote','--command',statements.slice(index,index+4).join('\n')],{stdio:'inherit',cwd:process.cwd(),timeout:120000});
+   if(result.error)throw result.error;
+   if(result.status!==0)throw new Error(`Wrangler exited ${result.status}`);
+  }
   console.log(`Backfilled ${count} verified ${clubName} matches into live D1.`);
  }
 }finally{

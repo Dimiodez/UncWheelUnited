@@ -93,7 +93,7 @@ function relayPlayers(value:unknown,clubId:string){
   const passAttempts=integer(player.passes??player.passattempts),passesMade=integer(player.passesCompleted??player.passesmade);
   const tackleAttempts=integer(player.tackles??player.tackleattempts),tacklesMade=integer(player.tacklesWon??player.tacklesmade);
   const rating=numeric(player.rating);
-  return {id:scalar(player.playerId)||key,name:scalar(player.name??player.playername??player.vProName)||'Unknown player',human:true,motm:integer(player.manOfTheMatch)===1,stats:[position(player.position??player.pos??player.vProPosition),rating?rating.toFixed(1):unavailable,String(integer(player.goals)),String(integer(player.shots)),String(integer(player.assists)),unavailable,unavailable,unavailable,unavailable,ratio(passesMade,passAttempts),ratio(tacklesMade,tackleAttempts),String(integer(player.interceptions)),unavailable,String(integer(player.saves))]};
+  return {id:scalar(player.playerId)||key,name:scalar(player.name??player.playername??player.vProName)||'Unknown player',human:true,motm:integer(player.manOfTheMatch??player.mom)===1,stats:[position(player.position??player.pos??player.vProPosition),rating?rating.toFixed(1):unavailable,String(integer(player.goals)),String(integer(player.shots)),String(integer(player.assists)),unavailable,unavailable,unavailable,unavailable,ratio(passesMade,passAttempts),ratio(tacklesMade,tackleAttempts),player.interceptions==null?unavailable:String(integer(player.interceptions)),unavailable,String(integer(player.saves))]};
  });
 }
 

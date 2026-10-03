@@ -11,6 +11,7 @@ function testDatabase(){
  const sqlite=new DatabaseSync(':memory:');
  sqlite.exec(readFileSync(new URL('../migrations/0028_sandy_bums_history.sql',(import.meta as unknown as {url:string}).url),'utf8'));
  sqlite.exec(readFileSync(new URL('../migrations/0030_mountains_history.sql',(import.meta as unknown as {url:string}).url),'utf8'));
+ sqlite.exec(readFileSync(new URL('../migrations/0031_house_match_details.sql',(import.meta as unknown as {url:string}).url),'utf8'));
  const prepare=(sql:string)=>({
   bind(...values:unknown[]){
    const statement=sqlite.prepare(sql);
@@ -32,6 +33,19 @@ const match=(id:string,playedAt:number,players:Array<{id:string;name:string;goal
 });
 
 describe('FC Sandy Bums historical archive',()=>{
+ it('retains full sheets for both teams, including MotM and disconnected rows',async()=>{
+  const env={DB:testDatabase()} as Env;
+  const now=Date.parse('2026-10-03T01:00:00Z');
+  const game=match('detail',now,[{id:'odez',name:'Odez',goals:1,assists:2,rating:'3.0'}]);
+  game.clubs[0].players[0].motm=true;
+  game.clubs[0].players[0].stats[9]='20 / 25 (80%)';
+  game.clubs[1].players=[{id:'other',name:'Opponent',human:true,stats:['GK','8.0','0','0','0','—','—','—','—','5 / 10 (50%)','0 / 0 (0%)','—','—','4']}];
+  await syncSandyBums(env,now,async()=>[game]);
+  const data=await (await sandyBumsArchive(env,'all')).json() as {matches:Array<{details:ClubMatch}>};
+  expect(data.matches[0].details.clubs).toHaveLength(2);
+  expect(data.matches[0].details.clubs[0].players[0]).toMatchObject({motm:true,stats:game.clubs[0].players[0].stats});
+  expect(data.matches[0].details.clubs[1].players[0].stats[13]).toBe('4');
+ });
  it('assigns late UTC games to the Central-time month',()=>{
   expect(centralMonth(Date.parse('2026-10-01T02:00:00Z'))).toBe('2026-09');
   expect(centralMonth(Date.parse('2026-10-01T06:00:00Z'))).toBe('2026-10');
