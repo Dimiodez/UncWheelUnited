@@ -15,17 +15,62 @@ const reminderOffsets=(policy:ReminderPolicy)=>policy==='both'?[1440,60]:policy=
 const discordHeaders=(env:Env)=>({authorization:`Bot ${env.DISCORD_BOT_TOKEN}`,'content-type':'application/json'});
 const discordApi='https://discord.com/api/v10';
 const everyoneMention={parse:['everyone' as const]};
+const MAX_EVENT_IMAGE_BYTES=10*1024*1024;
 function eventImageUrl(i:DiscordInteraction,options:DiscordOption[]|undefined):string|null{
  const id=opt(options,'image');if(!id)return null;
  const attachment=i.data?.resolved?.attachments?.[id];
  if(!attachment||attachment.id!==id||!['image/png','image/jpeg','image/webp','image/gif'].includes(attachment.content_type??'')||!/\.(png|jpe?g|webp|gif)$/i.test(attachment.filename))throw new Error('Attach a PNG, JPG, WebP, or GIF image using the image option.');
+ if(attachment.size!==undefined&&(!Number.isFinite(attachment.size)||attachment.size<=0||attachment.size>MAX_EVENT_IMAGE_BYTES))throw new Error('Use an event image smaller than 10 MB.');
  let url:URL;try{url=new URL(attachment.url);}catch{throw new Error('That image attachment has an invalid URL. Please upload it again.');}
- if(url.protocol!=='https:'||url.hostname!=='cdn.discordapp.com'||url.username||url.password||url.port||!/^\/attachments\/\d+\/\d+\/[^/]+$/.test(url.pathname)||url.pathname.split('/')[3]!==id)throw new Error('Please use an image uploaded directly to Discord, not an external link.');
+ // Slash-command uploads can use ephemeral-attachments and media proxy hosts.
+ // The resolved attachment is signed by Discord; its URL path IDs need not equal the option ID.
+ if(url.protocol!=='https:'||!['cdn.discordapp.com','media.discordapp.net'].includes(url.hostname)||url.username||url.password||url.port||!/^\/(?:ephemeral-attachments|attachments)\/\d+\/\d+\/[^/]+$/.test(url.pathname))throw new Error('Discord returned an unsupported upload location. Please try attaching the image again.');
  // Discord refreshes unsigned CDN URLs in embed image fields; don't persist expiring signatures.
  return `${url.origin}${url.pathname}`;
 }
 function withEventImage(url:string|null,data:NonNullable<InteractionResponse['data']>):NonNullable<InteractionResponse['data']>{
  return url?{...data,embeds:[{image:{url},color:0xed174c},...(data.embeds??[])]}:data;
+}
+async function readEventImage(response:Response):Promise<Uint8Array>{
+ if(!response.ok||!response.body)throw new Error('Discord could not download the uploaded image.');
+ if(Number(response.headers.get('content-length')||0)>MAX_EVENT_IMAGE_BYTES)throw new Error('Use an event image smaller than 10 MB.');
+ const reader=response.body.getReader(),chunks:Uint8Array[]=[];let length=0;
+ try{while(true){const {value,done}=await reader.read();if(done)break;length+=value.length;if(length>MAX_EVENT_IMAGE_BYTES)throw new Error('Use an event image smaller than 10 MB.');chunks.push(value);}}finally{await reader.cancel();}
+ const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}return bytes;
+}
+function imageSignatureMatches(bytes:Uint8Array,mime:string):boolean{
+ const text=(from:number,to:number)=>String.fromCharCode(...bytes.slice(from,to));
+ return mime==='image/png'?bytes.length>=8&&[137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value):mime==='image/jpeg'?bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255:mime==='image/gif'?['GIF87a','GIF89a'].includes(text(0,6)):mime==='image/webp'?bytes.length>=12&&text(0,4)==='RIFF'&&text(8,12)==='WEBP':false;
+}
+// Slash-command uploads may be temporary. Copy them into the bot's public message
+// and reference that message's own attachment so future signup edits don't lose it.
+export async function publishEventSignupImage(env:Env,i:DiscordInteraction,post:typeof fetch=fetch):Promise<void>{
+ const options=i.data?.options?.find(option=>option.name==='create')?.options;
+ const occurrence=await env.DB.prepare(`SELECT o.id,s.id AS series_id FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.creation_interaction_id=? AND s.guild_id=? AND s.event_kind='event'`).bind(i.id,i.guild_id??'').first<{id:number;series_id:number}>();
+ if(!occurrence)throw new Error('The image event was not saved.');
+ const endpoint=`${discordApi}/webhooks/${i.application_id}/${i.token}/messages/@original`;
+ try{
+  eventImageUrl(i,options);
+  const attachment=i.data!.resolved!.attachments![opt(options,'image')];
+  const response=await post(attachment.url,{redirect:'error',signal:AbortSignal.timeout(15000)});
+  const bytes=await readEventImage(response);
+  if(!imageSignatureMatches(bytes,attachment.content_type!))throw new Error('The uploaded file is not a supported image. Use a PNG, JPG, WebP or GIF.');
+  const extension:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'};
+  const filename=`event-flyer.${extension[attachment.content_type!]}`;
+  await env.DB.prepare('UPDATE schedule_series SET image_url=? WHERE id=?').bind(`attachment://${filename}`,occurrence.series_id).run();
+  const payload=await card(env,i.guild_id!,occurrence.id);
+  const form=new FormData();form.set('payload_json',JSON.stringify({...payload,content:'@everyone',allowed_mentions:everyoneMention,attachments:[{id:0,filename}]}));
+  form.set('files[0]',new Blob([bytes.buffer as ArrayBuffer],{type:attachment.content_type}),filename);
+  const sent=await post(endpoint,{method:'PATCH',body:form,signal:AbortSignal.timeout(15000)});
+  if(!sent.ok)throw new Error('Discord could not attach the image to the event post.');
+ }catch(error){
+  await env.DB.prepare('UPDATE schedule_series SET image_url=NULL WHERE id=?').bind(occurrence.series_id).run();
+  const payload=await card(env,i.guild_id!,occurrence.id);
+  const reason=error instanceof Error&&['Use an event image smaller than 10 MB.','The uploaded file is not a supported image. Use a PNG, JPG, WebP or GIF.'].includes(error.message)?error.message:'The image could not be attached. Please try the upload again.';
+  const fallback=await post(endpoint,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({...payload,content:`@everyone\n⚠️ ${reason}`,allowed_mentions:everyoneMention,attachments:[]}),signal:AbortSignal.timeout(15000)});
+  if(!fallback.ok)throw new Error('Discord could not publish the event post.');
+  console.error(JSON.stringify({event:'event_image_publish_failed',occurrenceId:occurrence.id}));
+ }
 }
 const buttons=(id:number,kind:'rsvp'|'event')=>{
  const prefix=kind==='event'?'event-signup':'schedule-rsvp';

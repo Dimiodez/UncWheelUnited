@@ -9,7 +9,7 @@ import {expireFreeAgents} from './free-agent-maintenance';
 import {auditDiscordCommands,syncDiscordCommands} from './command-registration';
 import {consumeCooldown} from './cooldowns';
 import {processRegistrationSchedules} from './registration-reminders';
-import {captureOriginalRsvpPost,processRecurringSchedules,processRsvpReminders} from './schedule-events';
+import {captureOriginalRsvpPost,processRecurringSchedules,processRsvpReminders,publishEventSignupImage} from './schedule-events';
 import {refreshExistingHelpCenters} from './help-center';
 import {refreshBotOwners,withBotOwner} from './permissions';
 import {pollPatchUpdates} from './patch-notes';
@@ -68,6 +68,10 @@ export default {
       if(source){const wait=await consumeCooldown(env,interaction,'standings-image',20);if(wait)return json({type:4,data:{content:`Please wait ${wait} seconds before generating another standings image.`,flags:64}});ctx.waitUntil(publishStandingsImage(env,interaction,source));return json({type:5});}
     }
     try { const result=await handleCommand(env, interaction, new EaClubsAdapter(env));
+      if(interaction.type===2&&interaction.data?.name==='event'&&interaction.data.options?.[0]?.name==='create'&&interaction.data.options[0].options?.some(option=>option.name==='image'&&option.value)&&result.type===4&&result.data?.embeds?.length){
+        ctx.waitUntil(publishEventSignupImage(env,interaction).then(()=>captureOriginalRsvpPost(env,interaction)).catch(error=>console.error(JSON.stringify({event:'event_image_response_failed',error:error instanceof Error?error.message:'Unknown error'}))));
+        return json({type:5});
+      }
       if(interaction.type===2&&['rsvp','event'].includes(interaction.data?.name??'')&&interaction.data?.options?.[0]?.name==='create'&&result.type===4&&result.data?.embeds?.length)ctx.waitUntil(captureOriginalRsvpPost(env,interaction).catch(error=>console.error(JSON.stringify({event:'rsvp_original_post_capture_failed',error:String(error)}))));
       if((interaction.type===3&&interaction.data?.custom_id?.startsWith('fa-competitions:')&&result.type===7)||(interaction.type===3&&interaction.data?.custom_id?.startsWith('recruit-sign:'))||(interaction.type===2&&['recruit','recruiting'].includes(interaction.data?.name??'')&&interaction.data?.options?.[0]?.name==='freeagent'&&result.data?.embeds?.length))ctx.waitUntil(publishFreeAgents(env));
       if(interaction.type===2&&['sign','register'].includes(interaction.data?.name??''))ctx.waitUntil(publishFreeAgents(env));
