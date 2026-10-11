@@ -3,7 +3,7 @@ import type {DiscordInteraction,Env,InteractionResponse} from './types';
 
 const API='https://discord.com/api/v10';
 const MARKER='UFB_HELP_CENTER_V1';
-const CONTENT_VERSION='20261011-player-events-v1';
+const CONTENT_VERSION='20261011-separate-events-v2';
 const EVERYONE_DENY=(2048n|34359738368n|274877906944n).toString();
 const BOT_ALLOW=(1024n|2048n|16384n|32768n|65536n|17179869184n|34359738368n|274877906944n).toString();
 export const UFB_BOT_PERMISSIONS=(16n|1024n|2048n|16384n|32768n|65536n|131072n|17179869184n|34359738368n|274877906944n|2147483648n).toString();
@@ -39,8 +39,8 @@ const sections:HelpSection[]=[
   '`/standings` — print the selected league table.',
   '`/schedule` — show the official website schedule.',
   '`/rsvp create` — the selected team’s manager or a UFB Moderator/Administrator creates one event or a recurring series. Example: `name:Practice Nights team:Roma FC day:Wednesday time:7pm timezone:Central repeat:Weekly occurrences:10 reminders:24 hours and 1 hour before thread:True`.',
-  'The next Wednesday at 7 PM Central is used; alternatively set date:YYYY-MM-DD instead of day. Discord displays times in each member’s timezone. The event post and each later occurrence ping @everyone. Members use Sign Up, Tentative, No, or Substitute; changing an answer never pings again.',
-  'For a community event, UFB Moderators/Administrators can omit team. Set format:BYOT (or 3v3, 6v6, 10v10 or custom), win_points:3 draw_points:1 loss_points:0, and signup_close:YYYY-MM-DD HH:mm in the chosen timezone. Signups close at kickoff if no deadline is entered. Recurring dates keep the same deadline lead time. All formats currently collect individual players, not registered teams.',
+  'The next Wednesday at 7 PM Central is used; Discord displays it in each member’s timezone. The event post and each later occurrence ping @everyone. Members use Yes, Tentative or No; changing an answer never pings again.',
+  '`/event create` — separate player signup cards for BYOT, 3v3, 6v6, 10v10 or a custom format. Required: name, time, timezone, and either day or date:YYYY-MM-DD. Set format, win_points/draw_points/loss_points (default 3/1/0), and signup_close:YYYY-MM-DD HH:mm. Staff can omit team for a community event; team managers can select their own team. Four choices: Sign Up, Tentative, No, Substitute. All formats collect players, not linked teams. Deadlines default to kickoff; recurring dates retain the same lead time. Use `/event list` or `/event cancel` to manage these separately from RSVP attendance.',
   'With reminders and a thread, full 24-hour/1-hour reminders go inside the event thread. A short @everyone link in the main channel ensures everyone is notified. If the thread is unavailable, the full reminder appears in the channel. The bot needs Mention Everyone permission there.',
   '`/rsvp list` and `/rsvp cancel` — review upcoming events or stop your own recurring event.',
   '`/leaguestats` — print the top five for goals, assists and average match rating.',

@@ -500,7 +500,7 @@ export async function handleCommand(env: Env, interaction: DiscordInteraction, e
   }
   if(interaction.type!==4){const result=await navigation(env,interaction,next=>handleCommand(env,next,ea));if(result)return result;}
   if(interaction.type===3&&interaction.data?.custom_id?.startsWith('info-reset:'))return infoReset(env,interaction);
-  if(interaction.type===3&&interaction.data?.custom_id?.startsWith('schedule-rsvp:'))return scheduleRsvp(env,interaction);
+  if(interaction.type===3&&(interaction.data?.custom_id?.startsWith('schedule-rsvp:')||interaction.data?.custom_id?.startsWith('event-signup:')))return scheduleRsvp(env,interaction);
   if(interaction.type===2&&['recruit','recruiting'].includes(interaction.data?.name??'')){
     await expireFreeAgents(env);
     if(['edit','renew'].includes(subcommand(interaction)?.name??''))return maintainFreeAgent(env,interaction);
@@ -569,6 +569,7 @@ export async function handleCommand(env: Env, interaction: DiscordInteraction, e
     case 'stats': return stats(env, interaction);
     case 'playerstats': return playerStats(env, interaction,ea);
     case 'matchnight': return matchnight(env, interaction);
+    case 'event':
     case 'rsvp': return scheduleEventCommand(env,interaction);
     case 'standings': return standings(env, interaction);
     default: return message('That UFB command is not available yet.', true);

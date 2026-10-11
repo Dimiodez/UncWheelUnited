@@ -27,8 +27,10 @@ const registerSchema=commandSchema.find(command=>command.name==='register');asse
 const teamSchema=commandSchema.find(command=>command.name==='team');assert.deepEqual(teamSchema.options.map(option=>option.name),['view','assign','unassign','dissolve']);assert.ok(teamSchema.options.find(option=>option.name==='dissolve').options.find(option=>option.name==='confirm').required);assert.ok(teamSchema.options.find(option=>option.name==='assign').options.find(option=>option.name==='confirm').required);
 const automodeSchema=commandSchema.find(command=>command.name==='automode');assert.deepEqual(automodeSchema.options.find(option=>option.name==='start').options.map(option=>option.name),['team','idle_minutes']);assert.deepEqual(automodeSchema.options.find(option=>option.name==='stop').options.map(option=>option.name),['team']);
 assert.ok(!commandSchema.some(command=>command.name==='matchnight'),'Legacy /matchnight should not be published alongside /rsvp');
-const rsvpCreateSchema=commandSchema.find(command=>command.name==='rsvp').options.find(option=>option.name==='create');assert.deepEqual(rsvpCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name','time','timezone']);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='team').autocomplete,true);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='day').choices.length,7);assert.ok(rsvpCreateSchema.options.some(option=>option.name==='reminders')&&rsvpCreateSchema.options.some(option=>option.name==='thread'));
-for(const key of ['format','date','signup_close','win_points','draw_points','loss_points'])assert.ok(rsvpCreateSchema.options.some(option=>option.name===key));
+const rsvpCreateSchema=commandSchema.find(command=>command.name==='rsvp').options.find(option=>option.name==='create');assert.deepEqual(rsvpCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name','team','day','time','timezone']);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='team').autocomplete,true);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='day').choices.length,7);assert.ok(rsvpCreateSchema.options.some(option=>option.name==='reminders')&&rsvpCreateSchema.options.some(option=>option.name==='thread'));
+const eventCreateSchema=commandSchema.find(command=>command.name==='event').options.find(option=>option.name==='create');
+assert.deepEqual(eventCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name','time','timezone']);
+for(const key of ['format','date','signup_close','win_points','draw_points','loss_points']){assert.ok(eventCreateSchema.options.some(option=>option.name===key));assert.ok(!rsvpCreateSchema.options.some(option=>option.name===key));}
 for(const name of ['schedule','leaguestats']){const league=commandSchema.find(command=>command.name===name).options.find(option=>option.name==='league');assert.equal(league.autocomplete,true);assert.equal(league.choices,undefined);}
 assert.ok(!commandSchema.some(command=>command.name==='leaderboard'));
 class Statement {constructor(sql){this.sql=sql;this.args=[]}bind(...args){this.args=args;return this}async first(){return db.prepare(this.sql).get(...this.args)??null}async all(){return {results:db.prepare(this.sql).all(...this.args)}}async run(){const r=db.prepare(this.sql).run(...this.args);return {meta:{changes:Number(r.changes),last_row_id:Number(r.lastInsertRowid)}}}}
@@ -53,7 +55,8 @@ assert.match((await call('guest','rsvp','create',{name:'Unauthorized Event',...r
 const deniedRsvp={...interaction('host','rsvp','create',{name:'Denied Event',...rsvpInput(startLocal)}),app_permissions:'0'};
 assert.match((await handleCommand(env,deniedRsvp)).data.content,/Mention Everyone/);
 const createdRsvp=await call('host','rsvp','create',{name:'Training Night',...rsvpInput(startLocal),repeat:'weekly',occurrences:3});
-assert.equal(createdRsvp.type,4);assert.ok(createdRsvp.data.embeds,JSON.stringify(createdRsvp));assert.match(createdRsvp.data.embeds[0].description,/<t:\d+:F>/);assert.equal(createdRsvp.data.components[0].components.length,4);
+assert.equal(createdRsvp.type,4);assert.ok(createdRsvp.data.embeds,JSON.stringify(createdRsvp));assert.match(createdRsvp.data.embeds[0].description,/<t:\d+:F>/);assert.equal(createdRsvp.data.components[0].components.length,3);
+assert.deepEqual(createdRsvp.data.components[0].components.map(button=>button.label),['Yes','Tentative','No']);assert.ok(!createdRsvp.data.embeds[0].description.includes('Points:'));
 assert.equal(createdRsvp.data.content,'@everyone');assert.deepEqual(createdRsvp.data.allowed_mentions.parse,['everyone']);
 assert.match(createdRsvp.data.embeds[0].description,/Roma FC/);
 const rsvpSeries=db.prepare("SELECT * FROM schedule_series WHERE guild_id='guild'").get();
@@ -112,8 +115,9 @@ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_reminders WHERE occu
 const communityStart=new Date(Date.now()+48*3_600_000).toISOString().slice(0,16).replace('T',' ');
 const communityClose=new Date(Date.now()+47*3_600_000).toISOString().slice(0,16).replace('T',' ');
 const communityInput={name:'Community BYOT',date:communityStart.slice(0,10),time:communityStart.slice(11),timezone:'UTC',format:'BYOT',signup_close:communityClose,win_points:5,draw_points:2,loss_points:0,repeat:'weekly',occurrences:2};
-assert.match((await call('guest','rsvp','create',communityInput)).data.content,/Community events/);
-const staffCreate=options=>handleCommand(env,{...interaction('staff','rsvp','create',options),member:{user:{id:'staff',username:'staff'},roles:[],permissions:'8'}});
+assert.match((await call('guest','event','create',communityInput)).data.content,/Community events/);
+assert.match((await call('host','rsvp','create',communityInput)).data.content,/registered team/);
+const staffCreate=options=>handleCommand(env,{...interaction('staff','event','create',options),member:{user:{id:'staff',username:'staff'},roles:[],permissions:'8'}});
 assert.match((await staffCreate({...communityInput,day:'monday'})).data.content,/either date or day/);
 assert.match((await staffCreate({...communityInput,signup_close:new Date(Date.now()+49*3_600_000).toISOString().slice(0,16).replace('T',' ')})).data.content,/at or before/);
 assert.match((await staffCreate({...communityInput,win_points:-1})).data.content,/whole-number/);
@@ -126,7 +130,12 @@ assert.match(communityPost.data.embeds[0].description,new RegExp(`<t:${Math.floo
 assert.deepEqual(communityPost.data.components[0].components.map(button=>button.label),['Sign Up','Tentative','No','Substitute']);
 const communitySeries=db.prepare("SELECT * FROM schedule_series WHERE name='Community BYOT'").get();assert.equal(communitySeries.team_id,null);assert.equal(communitySeries.signup_close_minutes,60);
 const communityOccurrence=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=?').get(communitySeries.id);
-const respond=choice=>handleCommand(env,{...interaction('community-player','rsvp',null),type:3,data:{custom_id:`schedule-rsvp:${communityOccurrence.id}:${choice}`}});
+const respond=choice=>handleCommand(env,{...interaction('community-player','event',null),type:3,data:{custom_id:`event-signup:${communityOccurrence.id}:${choice}`}});
+assert.match((await call('staff','event','list')).data.content,/Community BYOT/);
+assert.ok(!(await call('staff','rsvp','list')).data.content.includes('Community BYOT'));
+assert.match((await call('staff','rsvp','cancel',{event_id:communitySeries.id})).data.content,/not in this Discord server/);
+assert.match((await handleCommand(env,{...attending,data:{custom_id:`schedule-rsvp:${communityOccurrence.id}:yes`}})).data.content,/does not belong/);
+assert.match((await handleCommand(env,{...attending,data:{custom_id:`event-signup:${firstRsvp.id}:yes`}})).data.content,/does not belong/);
 for(const choice of ['yes','tentative','no','substitute','substitute']){
  const response=await respond(choice);assert.equal(response.type,7);assert.equal(response.data.allowed_mentions.parse.length,0);
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).n,1);
@@ -605,7 +614,7 @@ try{
  await refreshExistingHelpCenters(helpEnv);
  const rsvpGuide=discordCalls.find(call=>call.method==='PATCH'&&call.body?.embeds?.[0]?.description?.includes('name:Practice Nights'));
  assert.ok(rsvpGuide);assert.match(rsvpGuide.body.embeds[0].description,/reminders go inside the event thread/);
- assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-player-events-v1');
+ assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-separate-events-v2');
  const callsAfterRefresh=discordCalls.length;await refreshExistingHelpCenters(helpEnv);assert.equal(discordCalls.length,callsAfterRefresh);
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
 }finally{globalThis.fetch=originalFetch;}

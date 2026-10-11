@@ -5,7 +5,7 @@ import {selectedTeam,selectionOptions,managesTeam} from './team-selectors';
 
 type Repeat='none'|'daily'|'weekly'|'biweekly';
 type ReminderPolicy='none'|'1h'|'24h'|'both';
-type EventSettings={event_format:string;points_win:number;points_draw:number;points_loss:number;signup_close_minutes:number};
+type EventSettings={event_kind:'rsvp'|'event';event_format:string;points_win:number;points_draw:number;points_loss:number;signup_close_minutes:number};
 type Series=EventSettings&{id:number;guild_id:string;channel_id:string;creator_id:string;name:string;team_id:number|null;team_name:string|null;timezone:string;recurrence:Repeat;reminder_policy:ReminderPolicy;thread_enabled:number;total_occurrences:number;created_count:number;next_local:string|null;next_post_at:number|null;active:number};
 type Occurrence=EventSettings&{id:number;series_id:number;starts_at:number;status:string;name:string;team_name:string|null;timezone:string;recurrence:Repeat;reminder_policy:ReminderPolicy;thread_enabled:number;thread_id:string|null;total_occurrences:number;created_count:number;guild_id:string;active:number};
 const opt=(items:DiscordOption[]|undefined,key:string)=>String(items?.find(item=>item.name===key)?.value??'').trim();
@@ -15,12 +15,15 @@ const reminderOffsets=(policy:ReminderPolicy)=>policy==='both'?[1440,60]:policy=
 const discordHeaders=(env:Env)=>({authorization:`Bot ${env.DISCORD_BOT_TOKEN}`,'content-type':'application/json'});
 const discordApi='https://discord.com/api/v10';
 const everyoneMention={parse:['everyone' as const]};
-const buttons=(id:number)=>[{type:1,components:[
- {type:2,style:3,label:'Sign Up',emoji:{name:'✅'},custom_id:`schedule-rsvp:${id}:yes`},
- {type:2,style:2,label:'Tentative',emoji:{name:'❔'},custom_id:`schedule-rsvp:${id}:tentative`},
- {type:2,style:4,label:'No',emoji:{name:'❌'},custom_id:`schedule-rsvp:${id}:no`},
- {type:2,style:1,label:'Substitute',emoji:{name:'🔄'},custom_id:`schedule-rsvp:${id}:substitute`}
-]}];
+const buttons=(id:number,kind:'rsvp'|'event')=>{
+ const prefix=kind==='event'?'event-signup':'schedule-rsvp';
+ return [{type:1,components:[
+  {type:2,style:3,label:kind==='event'?'Sign Up':'Yes',emoji:{name:'✅'},custom_id:`${prefix}:${id}:yes`},
+  {type:2,style:2,label:'Tentative',emoji:{name:'❔'},custom_id:`${prefix}:${id}:tentative`},
+  {type:2,style:4,label:'No',emoji:{name:'❌'},custom_id:`${prefix}:${id}:no`},
+  ...(kind==='event'?[{type:2,style:1,label:'Substitute',emoji:{name:'🔄'},custom_id:`${prefix}:${id}:substitute`}]:[])
+ ]}];
+};
 const formatter=(timezone:string)=>new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const parts=(format:Intl.DateTimeFormat,time:number)=>Object.fromEntries(format.formatToParts(time).filter(part=>part.type!=='literal').map(part=>[part.type,Number(part.value)]));
 const weekdays=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
@@ -49,7 +52,7 @@ export function nextWeekdayLocal(day:string,time:string,timezone:string,now=Date
  throw new Error('Could not find the next date for this event.');
 }
 export function rsvpTimezoneAutocomplete(i:DiscordInteraction):InteractionResponse|null{
- if(i.data?.name!=='rsvp'||i.data.options?.[0]?.name!=='create')return null;
+ if(!['rsvp','event'].includes(i.data?.name??'')||i.data?.options?.[0]?.name!=='create')return null;
  const focus=selectionOptions(i).find(option=>option.focused);
  if(focus?.name!=='timezone')return null;
  const query=String(focus.value??'').toLowerCase();
@@ -90,41 +93,44 @@ const line=(kind:string,rows:Array<{response:string;display_name:string}>)=>{
  return {name:`${kind==='yes'?'✅ Signed Up':kind==='tentative'?'❔ Tentative':kind==='substitute'?'🔄 Substitutes':'❌ No'} — ${names.length}`,value:shown.length?shown.join('\n'):'_None_',inline:true};
 };
 async function card(env:Env,guild:string,id:number):Promise<InteractionResponse['data']|null>{
- const event=await env.DB.prepare(`SELECT o.id,o.series_id,o.starts_at,o.status,o.thread_id,s.name,s.team_name,s.timezone,s.recurrence,s.reminder_policy,s.thread_enabled,s.total_occurrences,s.created_count,s.guild_id,s.active,s.event_format,s.points_win,s.points_draw,s.points_loss,s.signup_close_minutes FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.id=? AND s.guild_id=?`).bind(id,guild).first<Occurrence>();
+ const event=await env.DB.prepare(`SELECT o.id,o.series_id,o.starts_at,o.status,o.thread_id,s.name,s.team_name,s.timezone,s.recurrence,s.reminder_policy,s.thread_enabled,s.total_occurrences,s.created_count,s.guild_id,s.active,s.event_kind,s.event_format,s.points_win,s.points_draw,s.points_loss,s.signup_close_minutes FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.id=? AND s.guild_id=?`).bind(id,guild).first<Occurrence>();
  if(!event)return null;
  const rows=await env.DB.prepare('SELECT response,display_name FROM schedule_responses WHERE occurrence_id=? ORDER BY display_name COLLATE NOCASE').bind(id).all<{response:string;display_name:string}>();
  const unix=Math.floor(event.starts_at/1000),repeat=event.recurrence==='none'?'One-time':`${event.recurrence} · up to ${event.total_occurrences} dates`;
  const reminder=event.reminder_policy==='none'?'Off':event.reminder_policy==='both'?'24 hours and 1 hour before':event.reminder_policy==='24h'?'24 hours before':'1 hour before';
  const closesAt=event.starts_at-event.signup_close_minutes*60_000,closeUnix=Math.floor(closesAt/1000);
  const open=event.status==='open'&&Boolean(event.active)&&closesAt>Date.now();
- return {allowed_mentions:{parse:[]},embeds:[{title:`🏆 ${clean(event.name,100)}${event.status==='cancelled'?' — Cancelled':''}`,description:`**${open?'Open for player signups':'Signups closed'}** — individual players, not registered teams.\n⚽ **Format:** ${clean(event.event_format,40)}\n${event.team_name?`Team: **${clean(event.team_name,100)}**\n`:''}🏅 **Points:** W: ${event.points_win} · D: ${event.points_draw} · L: ${event.points_loss}\n⏰ **Signups close:** <t:${closeUnix}:F> (<t:${closeUnix}:R>)\n📅 **Event starts:** <t:${unix}:F> (<t:${unix}:R>)\nCreator timezone: **${clean(event.timezone,64)}** · ${repeat}\nReminder: **${reminder}**${event.thread_id?` · [Discussion thread](https://discord.com/channels/${guild}/${event.thread_id})`:''}\nEvent ID: **${event.series_id}**\n\nChoose Sign Up, Tentative, No, or Substitute. One response per player; you can change it until signups close.`,color:event.status==='cancelled'?0x777777:0xed174c,fields:['yes','tentative','no','substitute'].map(kind=>line(kind,rows.results))}],components:open?buttons(id):[]};
+ if(event.event_kind==='rsvp')return {allowed_mentions:{parse:[]},embeds:[{title:`📅 ${clean(event.name,100)}${event.status==='cancelled'?' — Cancelled':''}`,description:`${event.team_name?`Team: **${clean(event.team_name,100)}**\n`:''}<t:${unix}:F> · <t:${unix}:R>\nCreator timezone: **${clean(event.timezone,64)}** · ${repeat}\nReminder: **${reminder}**${event.thread_id?` · [Discussion thread](https://discord.com/channels/${guild}/${event.thread_id})`:''}\nEvent ID: **${event.series_id}**\n\nChoose your availability below. You can change it until kickoff.`,color:event.status==='cancelled'?0x777777:0x08bfea,fields:['yes','tentative','no'].map(kind=>{const field=line(kind,rows.results);if(kind==='yes')field.name=field.name.replace('Signed Up','Yes');return field;})}],components:open?buttons(id,'rsvp'):[]};
+ return {allowed_mentions:{parse:[]},embeds:[{title:`🏆 ${clean(event.name,100)}${event.status==='cancelled'?' — Cancelled':''}`,description:`**${open?'Open for player signups':'Signups closed'}** — individual players, not registered teams.\n⚽ **Format:** ${clean(event.event_format,40)}\n${event.team_name?`Team: **${clean(event.team_name,100)}**\n`:''}🏅 **Points:** W: ${event.points_win} · D: ${event.points_draw} · L: ${event.points_loss}\n⏰ **Signups close:** <t:${closeUnix}:F> (<t:${closeUnix}:R>)\n📅 **Event starts:** <t:${unix}:F> (<t:${unix}:R>)\nCreator timezone: **${clean(event.timezone,64)}** · ${repeat}\nReminder: **${reminder}**${event.thread_id?` · [Discussion thread](https://discord.com/channels/${guild}/${event.thread_id})`:''}\nEvent ID: **${event.series_id}**\n\nChoose Sign Up, Tentative, No, or Substitute. One response per player; you can change it until signups close.`,color:event.status==='cancelled'?0x777777:0xed174c,fields:['yes','tentative','no','substitute'].map(kind=>line(kind,rows.results))}],components:open?buttons(id,'event'):[]};
 }
 
 export async function scheduleEventCommand(env:Env,i:DiscordInteraction):Promise<InteractionResponse>{
+ const eventKind=i.data?.name==='event'?'event':'rsvp';
  const guild=i.guild_id,channel=i.channel_id,user=actor(i),action=i.data?.options?.find(item=>item.type===1);
  if(!guild||!channel||!user)return message('Use this command inside a Discord server channel.',true);
  if(action?.name==='list'){
-  const rows=await env.DB.prepare(`SELECT s.id,s.name,s.recurrence,s.creator_id,MIN(o.starts_at) AS starts_at FROM schedule_series s JOIN schedule_occurrences o ON o.series_id=s.id WHERE s.guild_id=? AND s.active=1 AND o.status='open' AND o.starts_at>? GROUP BY s.id ORDER BY starts_at LIMIT 15`).bind(guild,Date.now()).all<{id:number;name:string;recurrence:Repeat;creator_id:string;starts_at:number}>();
-  return message(rows.results.length?rows.results.map(row=>`**#${row.id} ${clean(row.name)}** · <t:${Math.floor(row.starts_at/1000)}:F> · ${row.recurrence}`).join('\n'):'No upcoming RSVP events in this server.',true);
+  const rows=await env.DB.prepare(`SELECT s.id,s.name,s.recurrence,s.creator_id,MIN(o.starts_at) AS starts_at FROM schedule_series s JOIN schedule_occurrences o ON o.series_id=s.id WHERE s.guild_id=? AND s.event_kind=? AND s.active=1 AND o.status='open' AND o.starts_at>? GROUP BY s.id ORDER BY starts_at LIMIT 15`).bind(guild,eventKind,Date.now()).all<{id:number;name:string;recurrence:Repeat;creator_id:string;starts_at:number}>();
+  return message(rows.results.length?rows.results.map(row=>`**#${row.id} ${clean(row.name)}** · <t:${Math.floor(row.starts_at/1000)}:F> · ${row.recurrence}`).join('\n'):`No upcoming ${eventKind==='rsvp'?'RSVP events':'player events'} in this server.`,true);
  }
  if(action?.name==='cancel'){
   const id=Number(opt(action.options,'event_id'));
-  if(!Number.isSafeInteger(id)||id<1)return message('Choose a valid event ID from `/rsvp list`.',true);
-  const series=await env.DB.prepare('SELECT * FROM schedule_series WHERE id=? AND guild_id=?').bind(id,guild).first<Series>();
+  if(!Number.isSafeInteger(id)||id<1)return message(`Choose a valid event ID from \`/${eventKind} list\`.`,true);
+  const series=await env.DB.prepare('SELECT * FROM schedule_series WHERE id=? AND guild_id=? AND event_kind=?').bind(id,guild,eventKind).first<Series>();
   if(!series)return message('That event is not in this Discord server.',true);
   if(series.creator_id!==user.id&&!ufbAdministrator(env,i))return message('Only the event creator or a UFB Administrator can cancel it.',true);
   if(!series.active)return message('That event is already cancelled or complete.',true);
   await env.DB.batch([env.DB.prepare('UPDATE schedule_series SET active=0,next_post_at=NULL WHERE id=? AND guild_id=?').bind(id,guild),env.DB.prepare("UPDATE schedule_occurrences SET status='cancelled' WHERE series_id=? AND starts_at>?").bind(id,Date.now())]);
   return message(`Cancelled **${clean(series.name)}** (event #${id}). No further recurrence posts will be made. Existing RSVP posts will no longer accept responses.`,true);
  }
- if(action?.name!=='create')return message('Choose `/rsvp create`, `/rsvp list`, or `/rsvp cancel`.',true);
+ if(action?.name!=='create')return message(`Choose \`/${eventKind} create\`, \`/${eventKind} list\`, or \`/${eventKind} cancel\`.`,true);
  if(i.app_permissions&&!(BigInt(i.app_permissions)&(8n|131072n)))return message('I need **Mention Everyone** permission in this channel before I can create an RSVP event with @everyone notifications. Ask a server administrator to enable it for my bot role, then try again.',true);
  const name=clean(opt(action.options,'name'),100),day=opt(action.options,'day'),time=opt(action.options,'time'),recurrence=opt(action.options,'repeat') as Repeat||'none';
  const teamText=opt(action.options,'team'),team=teamText?await selectedTeam(env,teamText,guild):null;
+ if(eventKind==='rsvp'&&!team)return message('Choose a registered team from this server’s suggestions.',true);
  if(teamText&&!team)return message('Choose a registered team from this server’s suggestions.',true);
  if(!ufbModerator(env,i)&&(!team||!await managesTeam(env,team.id,user.id)))return message('Only this team’s manager or a UFB Moderator/Administrator can create an RSVP event that notifies everyone. Community events without a team require a UFB Moderator/Administrator.',true);
- const eventFormat=clean(opt(action.options,'format')||'Match night',40);
- const points=['win_points','draw_points','loss_points'].map((key,index)=>opt(action.options,key)===''?[3,1,0][index]:Number(opt(action.options,key)));
+ const eventFormat=clean(eventKind==='event'?opt(action.options,'format')||'Match night':'Match night',40);
+ const points=['win_points','draw_points','loss_points'].map((key,index)=>eventKind==='rsvp'||opt(action.options,key)===''?[3,1,0][index]:Number(opt(action.options,key)));
  if(!eventFormat||points.some(value=>!Number.isInteger(value)||value<0||value>100))return message('Choose a format and whole-number points between 0 and 100 for a win, draw, and loss.',true);
  const reminderPolicy=(opt(action.options,'reminders')||'none') as ReminderPolicy;
  const threadEnabled=opt(action.options,'thread')==='true';
@@ -136,7 +142,7 @@ export async function scheduleEventCommand(env:Env,i:DiscordInteraction):Promise
  let startsAt:number,local:string,timezone:string;
  try{
   timezone=normalizeTimezone(opt(action.options,'timezone'));
-  const date=opt(action.options,'date');
+  const date=eventKind==='event'?opt(action.options,'date'):'';
   if(date&&day)throw new Error('Choose either date or day, not both.');
   if(date){
    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw new Error('Enter date as YYYY-MM-DD.');
@@ -147,14 +153,14 @@ export async function scheduleEventCommand(env:Env,i:DiscordInteraction):Promise
  if(startsAt<Date.now()+60_000||startsAt>Date.now()+366*86_400_000)return message('Choose a start at least one minute from now and within the next year.',true);
  let signupCloseMinutes=0;
  try{
-  const close=opt(action.options,'signup_close');
+  const close=eventKind==='event'?opt(action.options,'signup_close'):'';
   if(close){const closesAt=localToUtc(close,timezone);if(closesAt<=Date.now()||closesAt>startsAt)throw new Error('Signups must close in the future, at or before the event starts.');signupCloseMinutes=(startsAt-closesAt)/60_000;}
  }catch(error){return message(error instanceof Error?error.message:'Invalid signup closing time.',true);}
  if(recurrence!=='none'&&signupCloseMinutes>=(recurrence==='daily'?1440:recurrence==='weekly'?10080:20160))return message('For recurring events, signups must close less than one repeat interval before kickoff.',true);
  const active=await env.DB.prepare('SELECT COUNT(*) AS total FROM schedule_series WHERE guild_id=? AND creator_id=? AND active=1 AND (next_post_at IS NOT NULL OR id IN (SELECT series_id FROM schedule_occurrences WHERE starts_at>?))').bind(guild,user.id,Date.now()).first<{total:number}>();
  if((active?.total??0)>=10)return message('You already have ten upcoming events. Cancel or finish one before creating another.',true);
  const next=recurrence==='none'?null:nextLocal(local,recurrence);
- const inserted=await env.DB.prepare('INSERT INTO schedule_series (guild_id,channel_id,creator_id,name,team_id,team_name,timezone,recurrence,reminder_policy,thread_enabled,total_occurrences,next_local,next_post_at,event_format,points_win,points_draw,points_loss,signup_close_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(guild,channel,user.id,name,team?.id??null,team?.name??null,timezone,recurrence,reminderPolicy,threadEnabled?1:0,count,next,recurrence==='none'?null:startsAt,eventFormat,...points,signupCloseMinutes).run();
+ const inserted=await env.DB.prepare('INSERT INTO schedule_series (guild_id,channel_id,creator_id,name,team_id,team_name,timezone,recurrence,reminder_policy,thread_enabled,total_occurrences,next_local,next_post_at,event_format,points_win,points_draw,points_loss,signup_close_minutes,event_kind) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(guild,channel,user.id,name,team?.id??null,team?.name??null,timezone,recurrence,reminderPolicy,threadEnabled?1:0,count,next,recurrence==='none'?null:startsAt,eventFormat,...points,signupCloseMinutes,eventKind).run();
  const occurrence=await env.DB.prepare('INSERT INTO schedule_occurrences (series_id,starts_at,creation_interaction_id) VALUES (?,?,?)').bind(inserted.meta.last_row_id,startsAt,i.id||null).run();
  for(const minutes of reminderOffsets(reminderPolicy))await env.DB.prepare('INSERT INTO schedule_reminders (occurrence_id,offset_minutes) VALUES (?,?)').bind(occurrence.meta.last_row_id,minutes).run();
  const eventCard=await card(env,guild,Number(occurrence.meta.last_row_id));
@@ -162,9 +168,10 @@ export async function scheduleEventCommand(env:Env,i:DiscordInteraction):Promise
 }
 
 export async function scheduleRsvp(env:Env,i:DiscordInteraction):Promise<InteractionResponse>{
- const [,idText,response]=i.data?.custom_id?.split(':')??[],id=Number(idText),user=actor(i),guild=i.guild_id;
+ const [prefix,idText,response]=i.data?.custom_id?.split(':')??[],id=Number(idText),user=actor(i),guild=i.guild_id;
  if(!guild||!user||!Number.isSafeInteger(id)||!['yes','tentative','no','substitute'].includes(response))return message('This RSVP control is invalid.',true);
- const event=await env.DB.prepare(`SELECT o.starts_at,o.status,s.guild_id,s.active,s.signup_close_minutes FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.id=? AND s.guild_id=?`).bind(id,guild).first<{starts_at:number;status:string;guild_id:string;active:number;signup_close_minutes:number}>();
+ const event=await env.DB.prepare(`SELECT o.starts_at,o.status,s.guild_id,s.active,s.signup_close_minutes,s.event_kind FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.id=? AND s.guild_id=?`).bind(id,guild).first<{starts_at:number;status:string;guild_id:string;active:number;signup_close_minutes:number;event_kind:string}>();
+ if(event&&(prefix!==(event.event_kind==='event'?'event-signup':'schedule-rsvp')||event.event_kind==='rsvp'&&response==='substitute'))return message('This signup control does not belong to this event.',true);
  if(!event||event.status!=='open'||!event.active||event.starts_at-event.signup_close_minutes*60_000<=Date.now())return message('This event is closed or has already started.',true);
  const name=clean(user.global_name||user.username,48);
  const saved=await env.DB.prepare(`INSERT INTO schedule_responses (occurrence_id,discord_id,display_name,response) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.id=? AND s.guild_id=? AND o.status='open' AND s.active=1 AND o.starts_at-s.signup_close_minutes*60000>?) ON CONFLICT(occurrence_id,discord_id) DO UPDATE SET display_name=excluded.display_name,response=excluded.response,updated_at=CURRENT_TIMESTAMP`).bind(id,user.id,name,response,id,guild,Date.now()).run();

@@ -18,9 +18,9 @@ Each Discord server owns its own leagues and teams. After `/setup create`, an ad
 
 ## Player event signup cards
 
-`/rsvp create` now supports individual player events in any format, including BYOT, 3v3, 6v6, and 10v10. Staff can omit `team` for a community event; team managers can still choose their own registered team. Required fields are `name`, `time`, and `timezone`, plus either `day` or `date` (`YYYY-MM-DD`).
+`/event create` is separate from `/rsvp` and supports individual player events in any format, including BYOT, 3v3, 6v6, and 10v10. Staff can omit `team` for a community event; team managers can still choose their own registered team. Required fields are `name`, `time`, and `timezone`, plus either `day` or `date` (`YYYY-MM-DD`). `/event list` and `/event cancel` manage only player signup events; `/rsvp list` and `/rsvp cancel` manage only team attendance events. Existing RSVP cards retain their original Yes/Tentative/No controls, without points or signup-deadline settings.
 
-Example: `/rsvp create name:Friday 6v6 Cup time:8pm timezone:Central date:2026-10-16 format:6v6 signup_close:2026-10-16 19:55 win_points:3 draw_points:1 loss_points:0`.
+Example: `/event create name:Friday 6v6 Cup time:8pm timezone:Central date:2026-10-16 format:6v6 signup_close:2026-10-16 19:55 win_points:3 draw_points:1 loss_points:0`.
 
 The card shows the title, format, W/D/L points, signup deadline, start time, and four counted player lists: Sign Up, Tentative, No, Substitute. One response is saved per Discord account per event; changing it moves the player between lists. The deadline is enforced in the database write, not just in the displayed buttons. Omitted points default to 3/1/0, and omitted signup deadlines default to kickoff. Recurring events retain the same deadline lead time; that lead must be shorter than the repeat interval. Dates use the creator's selected timezone and display locally for each Discord reader. BYOT currently means individual player signups, not linked-team registration. Existing events and saved attendance are preserved by migration 0032.
 
