@@ -42,6 +42,14 @@ function imageSignatureMatches(bytes:Uint8Array,mime:string):boolean{
  const text=(from:number,to:number)=>String.fromCharCode(...bytes.slice(from,to));
  return mime==='image/png'?bytes.length>=8&&[137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value):mime==='image/jpeg'?bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255:mime==='image/gif'?['GIF87a','GIF89a'].includes(text(0,6)):mime==='image/webp'?bytes.length>=12&&text(0,4)==='RIFF'&&text(8,12)==='WEBP':false;
 }
+function discordValidationFields(value:unknown,prefix='',depth=0):string[]{
+ if(!value||typeof value!=='object'||depth>8)return [];
+ return Object.entries(value).flatMap(([key,child])=>{
+  if(key==='_errors')return prefix?[prefix]:[];
+  if(!/^[a-zA-Z0-9_]{1,40}$/.test(key))return [];
+  return discordValidationFields(child,prefix?`${prefix}.${key}`:key,depth+1);
+ }).slice(0,20);
+}
 // Slash-command uploads may be temporary. Copy them into the bot's public message
 // and reference that message's own attachment so future signup edits don't lose it.
 export async function publishEventSignupImage(env:Env,i:DiscordInteraction,post:typeof fetch=fetch):Promise<void>{
@@ -49,27 +57,39 @@ export async function publishEventSignupImage(env:Env,i:DiscordInteraction,post:
  const occurrence=await env.DB.prepare(`SELECT o.id,s.id AS series_id FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE o.creation_interaction_id=? AND s.guild_id=? AND s.event_kind='event'`).bind(i.id,i.guild_id??'').first<{id:number;series_id:number}>();
  if(!occurrence)throw new Error('The image event was not saved.');
  const endpoint=`${discordApi}/webhooks/${i.application_id}/${i.token}/messages/@original`;
+ let stage='validate',httpStatus:number|undefined,discordCode:number|undefined,validationFields:string[]=[];
  try{
   eventImageUrl(i,options);
   const attachment=i.data!.resolved!.attachments![opt(options,'image')];
+  stage='download';
   const response=await post(attachment.url,{redirect:'error',signal:AbortSignal.timeout(15000)});
+  httpStatus=response.status;
+  stage='read-image';
   const bytes=await readEventImage(response);
+  stage='check-image';
   if(!imageSignatureMatches(bytes,attachment.content_type!))throw new Error('The uploaded file is not a supported image. Use a PNG, JPG, WebP or GIF.');
   const extension:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif'};
   const filename=`event-flyer.${extension[attachment.content_type!]}`;
+  stage='save-image';httpStatus=undefined;
   await env.DB.prepare('UPDATE schedule_series SET image_url=? WHERE id=?').bind(`attachment://${filename}`,occurrence.series_id).run();
   const payload=await card(env,i.guild_id!,occurrence.id);
   const form=new FormData();form.set('payload_json',JSON.stringify({...payload,content:'@everyone',allowed_mentions:everyoneMention,attachments:[{id:0,filename}]}));
   form.set('files[0]',new Blob([bytes.buffer as ArrayBuffer],{type:attachment.content_type}),filename);
+  stage='attach-image';
   const sent=await post(endpoint,{method:'PATCH',body:form,signal:AbortSignal.timeout(15000)});
-  if(!sent.ok)throw new Error('Discord could not attach the image to the event post.');
+  httpStatus=sent.status;
+  if(!sent.ok){const failure=await sent.json().catch(()=>null) as {code?:unknown;errors?:unknown}|null;if(typeof failure?.code==='number')discordCode=failure.code;validationFields=discordValidationFields(failure?.errors);throw new Error('Discord could not attach the image to the event post.');}
  }catch(error){
+  // Persist only bounded diagnostic fields, never attachment URLs, signatures,
+  // interaction tokens, image bytes, or Discord's potentially private response body.
+  const diagnostic={event:'event_image_publish_failed',occurrenceId:occurrence.id,stage,httpStatus,discordCode,validationFields,errorType:error instanceof Error?error.name:'Unknown',runtimeCause:error instanceof Error&&/illegal invocation/i.test(error.message)?'illegal-invocation':undefined};
+  console.error(JSON.stringify(diagnostic));
+  await env.DB.prepare('INSERT INTO bot_metadata(key,value,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP').bind('event_image:last_failure',JSON.stringify(diagnostic)).run().catch(()=>{});
   await env.DB.prepare('UPDATE schedule_series SET image_url=NULL WHERE id=?').bind(occurrence.series_id).run();
   const payload=await card(env,i.guild_id!,occurrence.id);
   const reason=error instanceof Error&&['Use an event image smaller than 10 MB.','The uploaded file is not a supported image. Use a PNG, JPG, WebP or GIF.'].includes(error.message)?error.message:'The image could not be attached. Please try the upload again.';
   const fallback=await post(endpoint,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({...payload,content:`@everyone\n⚠️ ${reason}`,allowed_mentions:everyoneMention,attachments:[]}),signal:AbortSignal.timeout(15000)});
   if(!fallback.ok)throw new Error('Discord could not publish the event post.');
-  console.error(JSON.stringify({event:'event_image_publish_failed',occurrenceId:occurrence.id}));
  }
 }
 const buttons=(id:number,kind:'rsvp'|'event')=>{

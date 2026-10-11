@@ -176,6 +176,19 @@ for(const [index,host] of ['cdn.discordapp.com','media.discordapp.net'].entries(
 const tooBig=imageCreate();tooBig.data.resolved.attachments[imageId].size=11*1024*1024;assert.match((await handleCommand(env,tooBig)).data.content,/smaller than 10 MB/);
 const invalidBytes=imageCreate();invalidBytes.id='invalid-image-bytes';invalidBytes.data.options[0].options.find(option=>option.name==='name').value='Invalid Image Bytes';assert.equal((await handleCommand(env,invalidBytes)).type,4);
 const invalidReplies=[];await publishEventSignupImage(env,invalidBytes,async(url,init={})=>{if(!init.method)return new Response('<svg>not a PNG</svg>');invalidReplies.push(JSON.parse(init.body));return Response.json({id:'fallback-post'});});assert.match(invalidReplies[0].content,/not a supported image/);assert.equal(invalidReplies[0].embeds.length,1);assert.equal(db.prepare("SELECT image_url FROM schedule_series WHERE name='Invalid Image Bytes'").get().image_url,null);
+// Failure diagnostics distinguish CDN download failures from Discord multipart rejection,
+// without persisting signed URLs, webhook tokens, or private response contents.
+for(const mode of ['download','attach']){
+ const input=imageCreate();input.id=`image-diagnostic-${mode}`;input.data.options[0].options.find(option=>option.name==='name').value=`Diagnostic ${mode}`;await handleCommand(env,input);
+ await publishEventSignupImage(env,input,async(url,init={})=>{
+  if(!init.method)return mode==='download'?new Response('denied',{status:403}):new Response(Uint8Array.from([137,80,78,71,13,10,26,10]));
+  if(init.body instanceof FormData)return Response.json({code:50035,message:'private response must not be stored',errors:{secret:'sensitive'}},{status:400});
+  return Response.json({id:'diagnostic-fallback'});
+ });
+ const stored=db.prepare("SELECT value FROM bot_metadata WHERE key='event_image:last_failure'").get().value,diagnostic=JSON.parse(stored);
+ assert.equal(diagnostic.stage,mode==='download'?'read-image':'attach-image');assert.equal(diagnostic.httpStatus,mode==='download'?403:400);assert.equal(diagnostic.discordCode,mode==='download'?undefined:50035);
+ assert.ok(!/signature|https:|sensitive|private response|token/.test(stored));
+}
 // Exercise the actual signed Worker request: acknowledge immediately, then upload and capture.
 const workerBuild=await build({entryPoints:[fileURLToPath(new URL('../src/index.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {default:worker}=await import('data:text/javascript;base64,'+Buffer.from(workerBuild.outputFiles[0].text).toString('base64'));
