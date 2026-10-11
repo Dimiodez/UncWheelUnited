@@ -3,7 +3,7 @@ import type {DiscordInteraction,Env,InteractionResponse} from './types';
 
 const API='https://discord.com/api/v10';
 const MARKER='UFB_HELP_CENTER_V1';
-const CONTENT_VERSION='20261011-event-images-v4';
+const CONTENT_VERSION='20261011-events-help-v5';
 const EVERYONE_DENY=(2048n|34359738368n|274877906944n).toString();
 const BOT_ALLOW=(1024n|2048n|16384n|32768n|65536n|17179869184n|34359738368n|274877906944n).toString();
 export const UFB_BOT_PERMISSIONS=(16n|1024n|2048n|16384n|32768n|65536n|131072n|17179869184n|34359738368n|274877906944n|2147483648n).toString();
@@ -38,12 +38,7 @@ const sections:HelpSection[]=[
  {key:'league',name:'4 · Official League',summary:'Website-fed standings, schedules and player leaders.',lines:[
   '`/standings` — print the selected league table.',
   '`/schedule` — show the official website schedule.',
-  '`/rsvp create` — the selected team’s manager or a UFB Moderator/Administrator creates one event or a recurring series. Example: `name:Practice Nights team:Roma FC day:Wednesday time:7pm timezone:Central repeat:Weekly occurrences:10 reminders:24 hours and 1 hour before thread:True`.',
-  'The next Wednesday at 7 PM Central is used; Discord displays it in each member’s timezone. The event post and each later occurrence ping @everyone. Members use Yes, Tentative or No; changing an answer never pings again.',
-  '`/event create` — gauge player interest with just a name. Optional: format (BYOT, 3v3, 6v6, 10v10 or custom), win_points/draw_points/loss_points (default 3/1/0), team, and thread. No day, date, time or timezone is needed. Staff can omit team for a community event; team managers can select their own team. Four choices: Sign Up, Tentative, No, Substitute. Signups stay open until the creator or an administrator uses `/event close event_id:ID` (or `/event cancel`). `/event list` shows open posts. Create a separate `/rsvp` later when ready to schedule; the interest signup does not schedule anything automatically.',
-  'With reminders and a thread, full 24-hour/1-hour reminders go inside the event thread. A short @everyone link in the main channel ensures everyone is notified. If the thread is unavailable, the full reminder appears in the channel. The bot needs Mention Everyone permission there.',
-  '`/event create image:` — optionally upload a PNG, JPG, WebP or GIF flyer. It appears above the signup card and remains visible when players change their answers. Images stay hosted on Discord; no extra storage service is needed.',
-  '`/rsvp list` and `/rsvp cancel` — review upcoming events or stop your own recurring event.',
+  'For player interest signups or scheduled team attendance, see **6 · Events & Attendance**. `/schedule` remains the official league-fixtures command.',
   '`/leaguestats` — print the top five for goals, assists and average match rating.',
   'Choose a league created in this server. Administrators link its website feed with `/setup leaguesource`; EA match sheets use the live FC27 feed.'
  ]},
@@ -59,6 +54,18 @@ const sections:HelpSection[]=[
   '`/setup helpcenter` — a Discord administrator, configured UFB Administrator or Moderator, or the bot owner can create or refresh this guide without making duplicate threads. The bot owner can use all published commands in any server where UFB is installed, regardless of their server roles.',
   '`/setup patches` — create or refresh a read-only FC 27 patch-notes channel. UFB checks official EA patch notes, title updates, hotfixes and bug fixes automatically; it does not post community updates or FUT spotlights.',
   '`/info reset` — server owner or bot owner only. Shows two private warnings, then deletes only data tagged with this Discord server ID; other servers and commands remain untouched.'
+ ]},
+ {key:'events',name:'6 · Events & Attendance',summary:'Gauge interest with /event; schedule team attendance separately with /rsvp.',lines:[
+  '**Player interest — `/event create`**\nOnly `name` is required. Example: `/event create name:International Games format:BYOT`. Optional: `format` (BYOT, 3v3, 6v6, 10v10 or custom), `win_points`, `draw_points`, `loss_points` (default 3/1/0), `team`, `thread`, and `image`. Points describe the event; this signup does not create fixtures or standings.',
+  'No day, date, time, timezone or signup deadline is required. A UFB Moderator/Administrator or bot owner can create a community event without a team; team managers must choose their own registered team.',
+  '**Four player responses:** Sign Up, Tentative, No, Substitute. The post shows names and counts. One response per Discord account; selecting another choice moves that player. BYOT here still collects individual players, not registered teams.',
+  '`/event list` shows active interest events. The creator or an administrator can use `/event close event_id:ID` or `/event cancel event_id:ID`. Responses are preserved and further responses are blocked. There is no automatic expiry or reminder; create a separate `/rsvp` when the schedule is decided. Existing responses are not transferred automatically.',
+  '**Optional flyer — `image`**\nUse the image option’s file picker or drag a file into its upload box. Both methods are supported. PNG, JPG/JPEG, WebP or GIF; maximum 10 MB. Upload a file, not an external URL. SVG is not supported.',
+  'The flyer appears above the signup details and stays attached when players change answers or the bot adds a discussion-thread link. Discord hosts the saved image; no separate storage service is needed. Discord controls preview size, especially for tall flyers; click or tap the image to open it larger. A wider, less text-heavy design is easier to read in the preview. A failed image upload leaves a usable signup card with a warning.',
+  '**Scheduled team attendance — `/rsvp create`**\nThe selected team’s manager or a UFB Moderator/Administrator can create one night or a recurring series. Example: `name:Practice Nights team:Roma FC day:Wednesday time:7pm timezone:Central repeat:weekly occurrences:10 reminders:both thread:true`. Choose Discord’s suggested values for repeat and reminders.',
+  'The next Wednesday at 7 PM Central is used; Discord displays it in each member’s timezone. RSVP keeps its original **Yes, Tentative, No** choices. `/rsvp list` and `/rsvp cancel event_id:ID` manage scheduled attendance separately from interest events.',
+  'With reminders and a thread, full 24-hour/1-hour reminders go inside the event thread. A short @everyone link in the main channel ensures everyone is notified. If the thread is unavailable, the full reminder appears in the channel.',
+  '**Permissions and notifications:** the bot needs Mention Everyone, Embed Links and Send Messages; image posts also need Attach Files. Threads need the relevant thread permissions. New event and RSVP posts ping @everyone; recurring RSVP posts and configured reminders also ping. Changing a response or adding the thread link does not ping again.'
  ]}
 ];
 

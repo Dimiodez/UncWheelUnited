@@ -631,29 +631,29 @@ globalThis.fetch=async(url,init={})=>{
 try{
  const help=interaction('administrator','setup','helpcenter');help.member.permissions='8';help.application_id='bot-app';
  const helpEnv={...env,DISCORD_BOT_TOKEN:'test-token',DISCORD_APPLICATION_ID:'bot-app'};
- assert.match((await handleCommand(helpEnv,help)).data.content,/5 category threads/);
+ assert.match((await handleCommand(helpEnv,help)).data.content,/6 category threads/);
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path==='/guilds/guild/channels').length,1);
- assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
+ assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,6);
  assert.equal(db.prepare("SELECT channel_id FROM help_centers WHERE guild_id='guild'").get().channel_id,'help-channel');
  await handleCommand(helpEnv,help);
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path==='/guilds/guild/channels').length,1);
- assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
- assert.ok(discordCalls.filter(call=>call.method==='PATCH'&&/^\/channels\/thread-\d+$/.test(call.path)).length>=5);
+ assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,6);
+ assert.ok(discordCalls.filter(call=>call.method==='PATCH'&&/^\/channels\/thread-\d+$/.test(call.path)).length>=6);
  const firstThread=db.prepare("SELECT state_json FROM help_centers WHERE guild_id='guild'").get().state_json;
  const firstStart=JSON.parse(firstThread).sections.start;
  helpGuides.delete(firstStart.threadId);
  await handleCommand(helpEnv,help);
- assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5,'missing guide must not create a new thread');
+ assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,6,'missing guide must not create a new thread');
  assert.notEqual(JSON.parse(db.prepare("SELECT state_json FROM help_centers WHERE guild_id='guild'").get().state_json).sections.start.messageId,firstStart.messageId);
  db.prepare("DELETE FROM help_centers WHERE guild_id='guild'").run();
  await handleCommand(helpEnv,help);
- assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5,'lost state must adopt existing threads');
+ assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,6,'lost state must adopt existing threads');
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path==='/channels/help-channel/messages'&&call.body?.embeds).length,1,'lost state must adopt the existing index');
- helpThreads.set('thread-6',{id:'thread-6',type:11,parent_id:'help-channel',owner_id:'bot-app',name:'1 · Start Here'});
- helpGuides.set('thread-6',{id:'old-copy-guide',embeds:[{title:'1 · Start Here'}]});
+ helpThreads.set('thread-7',{id:'thread-7',type:11,parent_id:'help-channel',owner_id:'bot-app',name:'1 · Start Here'});
+ helpGuides.set('thread-7',{id:'old-copy-guide',embeds:[{title:'1 · Start Here'}]});
  await handleCommand(helpEnv,help);
- assert.ok(discordCalls.some(call=>call.path==='/channels/thread-6'&&call.method==='PATCH'&&call.body?.archived===true),'old duplicate thread should be archived');
- assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
+ assert.ok(discordCalls.some(call=>call.path==='/channels/thread-7'&&call.method==='PATCH'&&call.body?.archived===true),'old duplicate thread should be archived');
+ assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,6);
  db.prepare("INSERT INTO bot_metadata(key,value) VALUES('help_center_lock:guild','other-refresh')").run();
  const beforeLocked=discordCalls.length;
  assert.match((await handleCommand(helpEnv,help)).data.content,/already running/);
@@ -662,11 +662,15 @@ try{
  await refreshExistingHelpCenters(helpEnv);
  const rsvpGuide=discordCalls.find(call=>call.method==='PATCH'&&call.body?.embeds?.[0]?.description?.includes('name:Practice Nights'));
  assert.ok(rsvpGuide);assert.match(rsvpGuide.body.embeds[0].description,/reminders go inside the event thread/);
- assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-event-images-v4');
+ assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-events-help-v5');
+ const eventGuide=discordCalls.find(call=>call.body?.embeds?.[0]?.title==='6 · Events & Attendance').body.embeds[0];
+ for(const text of ['Only `name` is required','Substitute','file picker','maximum 10 MB','click or tap','not transferred automatically','Attach Files'])assert.ok(eventGuide.description.includes(text),text);
+ for(const call of discordCalls)for(const embed of call.body?.embeds??[])assert.ok((embed.description?.length??0)<=4096,'Help descriptions must fit Discord limits');
+ const directory=await call('guest','ufb',null);assert.ok(directory.data.embeds[0].fields.some(field=>field.value.includes('/event create')));
  const callsAfterRefresh=discordCalls.length;await refreshExistingHelpCenters(helpEnv);assert.equal(discordCalls.length,callsAfterRefresh);
- assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
+ assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,6);
 }finally{globalThis.fetch=originalFetch;}
-console.log('PASS: /setup helpcenter creates one read-only documentation channel, five live category threads and refreshes them without duplicates.');
+console.log('PASS: /setup helpcenter creates one read-only documentation channel, six live category threads, accurate event/image instructions within Discord limits, and refreshes without duplicates.');
 
 // Official EA Tracker cards are the patch-note source; every server opts in independently.
 const patchCard={id:'6abab3d79708ac341a108a7c',name:'FC 27 v1.0.2 - Small Bug Fix Update',desc:'EA SPORTS FC 27 version 1.0.2 is coming soon.\n\n**Ultimate Team**\n- Some countries were not available in the FC Pro Open Registration List.',shortUrl:'https://trello.com/c/L45frZPE'};

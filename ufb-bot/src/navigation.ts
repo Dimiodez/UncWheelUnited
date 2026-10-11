@@ -24,7 +24,11 @@ export async function navigation(e:Env,i:DiscordInteraction,dispatch:Dispatch):P
  const owner=actor(i);
  if(id&&id.split(':')[1]!==owner)return message('Open your own private panel with /ufb.',true);
  const [, ,action='home',arg='0']=id.split(':');
- if(action==='home'||!id){const r=embed('UFB — Your control panel','Choose a section. All controls here are private. Official league statistics and FC27 player statistics are separate.');r.data!.flags=64;r.data!.components=[row([button('My Team',`hub:${owner}:teams:0`),button('Stats',`hub:${owner}:stats:0`)])];return r;}
+ if(action==='home'||!id){const r=embed('UFB — Your control panel','Choose a section. All controls here are private. Official league statistics and FC27 player statistics are separate.',[
+  {name:'📋 Player interest',value:'`/event create` — only name required; optional format, points, team, thread and image. Sign Up / Tentative / No / Substitute. BYOT collects players, not teams. `/event list` · `/event close` · `/event cancel`.'},
+  {name:'🗓️ Scheduled team attendance',value:'`/rsvp create` — choose a registered team, day, time and timezone; optional repeats, reminders and thread. Yes / Tentative / No. `/rsvp list` · `/rsvp cancel`. Separate from interest signups.'},
+  {name:'📖 Help & updates',value:'See this server’s UFB Help Center for upload instructions and examples. Staff can create or refresh it with `/setup helpcenter`; administrators can enable official FC27 patch notes with `/setup patches`.'}
+ ]);r.data!.flags=64;r.data!.components=[row([button('My Team',`hub:${owner}:teams:0`),button('Stats',`hub:${owner}:stats:0`)])];return r;}
  if(['cups','drafts','cup','draft'].includes(action))return message('Cups, BYOT competitions and draft nights are in the workshop and are not currently published.',true);
  if(action==='renew')return privateResult(await dispatch(synthetic(i,'recruit','renew')));
  if(action==='edit'){
