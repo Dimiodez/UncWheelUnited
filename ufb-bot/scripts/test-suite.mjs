@@ -1,18 +1,19 @@
 import {DatabaseSync} from 'node:sqlite';
+import {fileURLToPath} from 'node:url';
 import {readFileSync,readdirSync} from 'node:fs';
 import assert from 'node:assert/strict';
 const {build}=await import(process.env.UFB_ESBUILD_MODULE || 'esbuild');
-const built=await build({entryPoints:[new URL('../src/commands.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const built=await build({entryPoints:[fileURLToPath(new URL('../src/commands.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {handleCommand}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
-const registrationBuilt=await build({entryPoints:[new URL('../src/command-registration.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const registrationBuilt=await build({entryPoints:[fileURLToPath(new URL('../src/command-registration.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {syncDiscordCommands}=await import('data:text/javascript;base64,'+Buffer.from(registrationBuilt.outputFiles[0].text).toString('base64'));
-const remindersBuilt=await build({entryPoints:[new URL('../src/registration-reminders.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const remindersBuilt=await build({entryPoints:[fileURLToPath(new URL('../src/registration-reminders.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {processRegistrationSchedules}=await import('data:text/javascript;base64,'+Buffer.from(remindersBuilt.outputFiles[0].text).toString('base64'));
-const scheduleBuilt=await build({entryPoints:[new URL('../src/schedule-events.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const scheduleBuilt=await build({entryPoints:[fileURLToPath(new URL('../src/schedule-events.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {captureOriginalRsvpPost,processRecurringSchedules,processRsvpReminders,localToUtc,nextWeekdayLocal,normalizeTimezone,rsvpTimezoneAutocomplete}=await import('data:text/javascript;base64,'+Buffer.from(scheduleBuilt.outputFiles[0].text).toString('base64'));
-const helpBuilt=await build({entryPoints:[new URL('../src/help-center.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const helpBuilt=await build({entryPoints:[fileURLToPath(new URL('../src/help-center.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {refreshExistingHelpCenters}=await import('data:text/javascript;base64,'+Buffer.from(helpBuilt.outputFiles[0].text).toString('base64'));
-const patchesBuilt=await build({entryPoints:[new URL('../src/patch-notes.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const patchesBuilt=await build({entryPoints:[fileURLToPath(new URL('../src/patch-notes.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {parseEaPatchCards,pollPatchUpdates}=await import('data:text/javascript;base64,'+Buffer.from(patchesBuilt.outputFiles[0].text).toString('base64'));
 const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON');
 for(const file of readdirSync(new URL('../migrations/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));
@@ -26,7 +27,8 @@ const registerSchema=commandSchema.find(command=>command.name==='register');asse
 const teamSchema=commandSchema.find(command=>command.name==='team');assert.deepEqual(teamSchema.options.map(option=>option.name),['view','assign','unassign','dissolve']);assert.ok(teamSchema.options.find(option=>option.name==='dissolve').options.find(option=>option.name==='confirm').required);assert.ok(teamSchema.options.find(option=>option.name==='assign').options.find(option=>option.name==='confirm').required);
 const automodeSchema=commandSchema.find(command=>command.name==='automode');assert.deepEqual(automodeSchema.options.find(option=>option.name==='start').options.map(option=>option.name),['team','idle_minutes']);assert.deepEqual(automodeSchema.options.find(option=>option.name==='stop').options.map(option=>option.name),['team']);
 assert.ok(!commandSchema.some(command=>command.name==='matchnight'),'Legacy /matchnight should not be published alongside /rsvp');
-const rsvpCreateSchema=commandSchema.find(command=>command.name==='rsvp').options.find(option=>option.name==='create');assert.deepEqual(rsvpCreateSchema.options.slice(0,5).map(option=>option.name),['name','team','day','time','timezone']);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='team').autocomplete,true);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='day').choices.length,7);assert.ok(rsvpCreateSchema.options.some(option=>option.name==='reminders')&&rsvpCreateSchema.options.some(option=>option.name==='thread'));
+const rsvpCreateSchema=commandSchema.find(command=>command.name==='rsvp').options.find(option=>option.name==='create');assert.deepEqual(rsvpCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name','time','timezone']);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='team').autocomplete,true);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='day').choices.length,7);assert.ok(rsvpCreateSchema.options.some(option=>option.name==='reminders')&&rsvpCreateSchema.options.some(option=>option.name==='thread'));
+for(const key of ['format','date','signup_close','win_points','draw_points','loss_points'])assert.ok(rsvpCreateSchema.options.some(option=>option.name===key));
 for(const name of ['schedule','leaguestats']){const league=commandSchema.find(command=>command.name===name).options.find(option=>option.name==='league');assert.equal(league.autocomplete,true);assert.equal(league.choices,undefined);}
 assert.ok(!commandSchema.some(command=>command.name==='leaderboard'));
 class Statement {constructor(sql){this.sql=sql;this.args=[]}bind(...args){this.args=args;return this}async first(){return db.prepare(this.sql).get(...this.args)??null}async all(){return {results:db.prepare(this.sql).all(...this.args)}}async run(){const r=db.prepare(this.sql).run(...this.args);return {meta:{changes:Number(r.changes),last_row_id:Number(r.lastInsertRowid)}}}}
@@ -51,7 +53,7 @@ assert.match((await call('guest','rsvp','create',{name:'Unauthorized Event',...r
 const deniedRsvp={...interaction('host','rsvp','create',{name:'Denied Event',...rsvpInput(startLocal)}),app_permissions:'0'};
 assert.match((await handleCommand(env,deniedRsvp)).data.content,/Mention Everyone/);
 const createdRsvp=await call('host','rsvp','create',{name:'Training Night',...rsvpInput(startLocal),repeat:'weekly',occurrences:3});
-assert.equal(createdRsvp.type,4);assert.ok(createdRsvp.data.embeds,JSON.stringify(createdRsvp));assert.match(createdRsvp.data.embeds[0].description,/<t:\d+:F>/);assert.equal(createdRsvp.data.components[0].components.length,3);
+assert.equal(createdRsvp.type,4);assert.ok(createdRsvp.data.embeds,JSON.stringify(createdRsvp));assert.match(createdRsvp.data.embeds[0].description,/<t:\d+:F>/);assert.equal(createdRsvp.data.components[0].components.length,4);
 assert.equal(createdRsvp.data.content,'@everyone');assert.deepEqual(createdRsvp.data.allowed_mentions.parse,['everyone']);
 assert.match(createdRsvp.data.embeds[0].description,/Roma FC/);
 const rsvpSeries=db.prepare("SELECT * FROM schedule_series WHERE guild_id='guild'").get();
@@ -106,6 +108,47 @@ assert.ok(recurrenceCalls.some(call=>call.url.endsWith('/threads')));
 const recurringSecond=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=? AND id<>?').get(recurringSeries.id,recurringFirst.id);
 assert.equal(recurringSecond.thread_id,'next-thread');
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_reminders WHERE occurrence_id=?').get(recurringSecond.id).n,1);
+// Community events require staff, but players do not need a registered team to sign up.
+const communityStart=new Date(Date.now()+48*3_600_000).toISOString().slice(0,16).replace('T',' ');
+const communityClose=new Date(Date.now()+47*3_600_000).toISOString().slice(0,16).replace('T',' ');
+const communityInput={name:'Community BYOT',date:communityStart.slice(0,10),time:communityStart.slice(11),timezone:'UTC',format:'BYOT',signup_close:communityClose,win_points:5,draw_points:2,loss_points:0,repeat:'weekly',occurrences:2};
+assert.match((await call('guest','rsvp','create',communityInput)).data.content,/Community events/);
+const staffCreate=options=>handleCommand(env,{...interaction('staff','rsvp','create',options),member:{user:{id:'staff',username:'staff'},roles:[],permissions:'8'}});
+assert.match((await staffCreate({...communityInput,day:'monday'})).data.content,/either date or day/);
+assert.match((await staffCreate({...communityInput,signup_close:new Date(Date.now()+49*3_600_000).toISOString().slice(0,16).replace('T',' ')})).data.content,/at or before/);
+assert.match((await staffCreate({...communityInput,win_points:-1})).data.content,/whole-number/);
+assert.match((await staffCreate({...communityInput,win_points:1.5})).data.content,/whole-number/);
+assert.match((await staffCreate({...communityInput,date:'2026-02-30'})).data.content,/invalid/);
+const communityPost=await staffCreate(communityInput);assert.equal(communityPost.type,4);
+assert.match(communityPost.data.embeds[0].description,/individual players, not registered teams/);
+assert.match(communityPost.data.embeds[0].description,/W: 5 · D: 2 · L: 0/);
+assert.match(communityPost.data.embeds[0].description,new RegExp(`<t:${Math.floor(Date.parse(communityClose.replace(' ','T')+'Z')/1000)}:F>`));
+assert.deepEqual(communityPost.data.components[0].components.map(button=>button.label),['Sign Up','Tentative','No','Substitute']);
+const communitySeries=db.prepare("SELECT * FROM schedule_series WHERE name='Community BYOT'").get();assert.equal(communitySeries.team_id,null);assert.equal(communitySeries.signup_close_minutes,60);
+const communityOccurrence=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=?').get(communitySeries.id);
+const respond=choice=>handleCommand(env,{...interaction('community-player','rsvp',null),type:3,data:{custom_id:`schedule-rsvp:${communityOccurrence.id}:${choice}`}});
+for(const choice of ['yes','tentative','no','substitute','substitute']){
+ const response=await respond(choice);assert.equal(response.type,7);assert.equal(response.data.allowed_mentions.parse.length,0);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).n,1);
+ assert.equal(db.prepare('SELECT response FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).response,choice);
+}
+const substituteUpdate=await respond('substitute');assert.match(substituteUpdate.data.embeds[0].fields[3].name,/Substitutes — 1/);assert.match(substituteUpdate.data.embeds[0].fields[3].value,/community-player/);
+const communityRecurring=[];
+await processRecurringSchedules({...env,DISCORD_BOT_TOKEN:'test'},async(url,init)=>{communityRecurring.push(JSON.parse(init.body));return Response.json({id:'community-recurring'});},communityOccurrence.starts_at+60_000);
+assert.equal(communityRecurring.length,1);assert.match(communityRecurring[0].embeds[0].description,/W: 5 · D: 2 · L: 0/);
+const nextCommunity=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=? AND id<>?').get(communitySeries.id,communityOccurrence.id);
+assert.match(communityRecurring[0].embeds[0].description,new RegExp(`<t:${Math.floor((nextCommunity.starts_at-3_600_000)/1000)}:F>`));
+db.prepare('UPDATE schedule_occurrences SET starts_at=? WHERE id=?').run(Date.now()+30*60_000,communityOccurrence.id);
+assert.match((await respond('yes')).data.content,/closed/);
+assert.equal(db.prepare('SELECT response FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).response,'substitute');
+// Updating the constraint must preserve existing attendance and timestamps.
+const migrationDb=new DatabaseSync(':memory:');migrationDb.exec('PRAGMA foreign_keys=ON');
+for(const file of readdirSync(new URL('../migrations/',import.meta.url)).filter(f=>f.endsWith('.sql')&&!f.startsWith('0032')).sort())migrationDb.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));
+migrationDb.exec("INSERT INTO schedule_series(guild_id,channel_id,creator_id,name,timezone,recurrence,total_occurrences) VALUES('g','c','u','Existing','UTC','none',1); INSERT INTO schedule_occurrences(series_id,starts_at) VALUES(1,123); INSERT INTO schedule_responses(occurrence_id,discord_id,display_name,response,updated_at) VALUES(1,'p','Player','yes','2026-10-01 12:00:00')");
+migrationDb.exec(readFileSync(new URL('../migrations/0032_player_event_signups.sql',import.meta.url),'utf8'));
+assert.equal(migrationDb.prepare('SELECT updated_at FROM schedule_responses').get().updated_at,'2026-10-01 12:00:00');
+assert.equal(migrationDb.prepare('SELECT signup_close_minutes FROM schedule_series').get().signup_close_minutes,0);
+migrationDb.exec("UPDATE schedule_responses SET response='substitute'; DELETE FROM schedule_occurrences");assert.equal(migrationDb.prepare('SELECT COUNT(*) AS n FROM schedule_responses').get().n,0);migrationDb.close();
 db.prepare("DELETE FROM teams WHERE league_id=?").run(rsvpLeague);db.prepare("DELETE FROM leagues WHERE id=?").run(rsvpLeague);
 db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('teams','leagues')").run();
 await call('host','draft','create',{name:'Draft',mode:'snake'});
@@ -188,7 +231,7 @@ const deliveryPost=db.prepare('SELECT MAX(id) AS id FROM recruitment_posts').get
 const queued=await selectFA('channel-agent',deliveryPost,['all']);assert.match(queued.data.content,/Auto-post queued/);
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM free_agent_deliveries').get().n,2);
 assert.match((await selectFA('channel-agent',deliveryPost,['all'])).data.content,/closed/);
-const channelBuild=await build({entryPoints:[new URL('../src/free-agent-channels.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const channelBuild=await build({entryPoints:[fileURLToPath(new URL('../src/free-agent-channels.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {publishFreeAgents}=await import('data:text/javascript;base64,'+Buffer.from(channelBuild.outputFiles[0].text).toString('base64'));
 const deliveryEnv={...env,DISCORD_BOT_TOKEN:'mock-token'},deliveryCalls=[];
 const mockDiscord=async(url,options)=>{deliveryCalls.push({url,method:options.method,payload:options.body?JSON.parse(options.body):{}});return new Response(JSON.stringify({id:'discord-'+deliveryCalls.length}),{status:200});};
@@ -220,7 +263,7 @@ const leagueChoices=(await handleCommand(env,autocomplete)).data.choices;
 assert.ok(leagueChoices.some(c=>c.value==='10v10'));assert.ok(!leagueChoices.some(c=>['6v6','all'].includes(c.value)));
 const triple=await call('triple-agent','recruiting','freeagent',{...faOptions,league_1:'6v6',league_2:'10v10'});assert.ok(triple.data.embeds);
 console.log('PASS: direct slash-command multi-league signup, saved selections, channel routing, All conflict validation, autocomplete and three-competition signup.');
-const watchBuild=await build({entryPoints:[new URL('../src/match-watchers.ts',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,platform:'node',format:'esm',write:false});
+const watchBuild=await build({entryPoints:[fileURLToPath(new URL('../src/match-watchers.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',write:false});
 const {backgrounds,matchBackground,pollWatchers,validateFeed,humanRows,matchingGames}=await import('data:text/javascript;base64,'+Buffer.from(watchBuild.outputFiles[0].text).toString('base64'));
 assert.ok(backgrounds.includes(matchBackground('random','match-one')));assert.equal(matchBackground('unc-stadium','match-one'),'unc-stadium');
 db.prepare("INSERT INTO leagues(slug,name,squad_size,guild_id) VALUES ('watch-test','Watch test',6,'guild')").run();
@@ -440,7 +483,7 @@ assert.match((await setupCall('create',{type:'league_6v6',name:'Test Season 6v6'
 await setupCall('create',{type:'league_10v10',name:'Test Season 10v10'});
 await setupCall('create',{type:'league_custom',name:'Test 3v3',team_size:3});
 const sourceUrl='https://www.uncfutbolleague.com/pickems-app/season-data.json';
-const sourceFixture=JSON.parse(readFileSync(new URL('../../.official-site/pickems-app/season-data.json',import.meta.url),'utf8'));
+const sourceFixture=JSON.parse(readFileSync(process.env.UFB_SEASON_FIXTURE||new URL('../../.official-site/pickems-app/season-data.json',import.meta.url),'utf8'));
 db.prepare("INSERT INTO leagues(slug,name,squad_size,guild_id) VALUES('other-server-season','Other server season',6,'other-guild')").run();
 assert.match((await setupCall('leaguesource',{league:'other-server-season',url:sourceUrl})).data.content,/configured in this Discord server/);
 assert.match((await setupCall('leaguesource',{league:'test-season-6v6',url:'http://localhost/private.json'})).data.content,/not saved/);
@@ -562,7 +605,7 @@ try{
  await refreshExistingHelpCenters(helpEnv);
  const rsvpGuide=discordCalls.find(call=>call.method==='PATCH'&&call.body?.embeds?.[0]?.description?.includes('name:Practice Nights'));
  assert.ok(rsvpGuide);assert.match(rsvpGuide.body.embeds[0].description,/reminders go inside the event thread/);
- assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20260929-team-managers-v2');
+ assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-player-events-v1');
  const callsAfterRefresh=discordCalls.length;await refreshExistingHelpCenters(helpEnv);assert.equal(discordCalls.length,callsAfterRefresh);
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
 }finally{globalThis.fetch=originalFetch;}

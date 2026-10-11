@@ -585,9 +585,18 @@
         "type": 4,
         "required": false,
         "choices": [
-          {"name":"3 games","value":3},
-          {"name":"6 games","value":6},
-          {"name":"9 games","value":9}
+          {
+            "name": "3 games",
+            "value": 3
+          },
+          {
+            "name": "6 games",
+            "value": 6
+          },
+          {
+            "name": "9 games",
+            "value": 9
+          }
         ]
       }
     ]
@@ -688,36 +697,191 @@
     "options": [
       {
         "name": "create",
-        "description": "Post a Yes / Tentative / No event in this channel",
+        "description": "Create a player signup event with four availability choices",
         "type": 1,
         "options": [
-          {"name":"name","description":"Event name","type":3,"required":true},
-          {"name":"team","description":"Choose the registered team playing","type":3,"required":true,"autocomplete":true},
-          {"name":"day","description":"Next occurrence of this weekday","type":3,"required":true,"choices":[
-            {"name":"Monday","value":"monday"},{"name":"Tuesday","value":"tuesday"},{"name":"Wednesday","value":"wednesday"},{"name":"Thursday","value":"thursday"},{"name":"Friday","value":"friday"},{"name":"Saturday","value":"saturday"},{"name":"Sunday","value":"sunday"}
-          ]},
-          {"name":"time","description":"Local time, e.g. 7pm or 7:30pm","type":3,"required":true},
-          {"name":"timezone","description":"Choose Central, Eastern, Pacific, or another timezone","type":3,"required":true,"autocomplete":true},
-          {"name":"repeat","description":"Repeat and post each next occurrence automatically","type":3,"required":false,"choices":[
-            {"name":"One time","value":"none"},
-            {"name":"Daily","value":"daily"},
-            {"name":"Weekly","value":"weekly"},
-            {"name":"Every two weeks","value":"biweekly"}
-          ]},
-          {"name":"occurrences","description":"Total dates for recurring events (2–52; default 8)","type":4,"required":false,"min_value":2,"max_value":52},
-          {"name":"reminders","description":"Optional reminder posts before each event","type":3,"required":false,"choices":[
-            {"name":"No reminders","value":"none"},
-            {"name":"1 hour before","value":"1h"},
-            {"name":"24 hours before","value":"24h"},
-            {"name":"24 hours and 1 hour before","value":"both"}
-          ]},
-          {"name":"thread","description":"Open a discussion thread for each event night","type":5,"required":false}
+          {
+            "name": "name",
+            "description": "Event name",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "time",
+            "description": "Local time, e.g. 7pm or 7:30pm",
+            "type": 3,
+            "required": true
+          },
+          {
+            "name": "timezone",
+            "description": "Choose Central, Eastern, Pacific, or another timezone",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "team",
+            "description": "Optional team; omit for a staff-created community event",
+            "type": 3,
+            "required": false,
+            "autocomplete": true
+          },
+          {
+            "name": "day",
+            "description": "Next occurrence of this weekday",
+            "type": 3,
+            "required": false,
+            "choices": [
+              {
+                "name": "Monday",
+                "value": "monday"
+              },
+              {
+                "name": "Tuesday",
+                "value": "tuesday"
+              },
+              {
+                "name": "Wednesday",
+                "value": "wednesday"
+              },
+              {
+                "name": "Thursday",
+                "value": "thursday"
+              },
+              {
+                "name": "Friday",
+                "value": "friday"
+              },
+              {
+                "name": "Saturday",
+                "value": "saturday"
+              },
+              {
+                "name": "Sunday",
+                "value": "sunday"
+              }
+            ]
+          },
+          {
+            "name": "repeat",
+            "description": "Repeat and post each next occurrence automatically",
+            "type": 3,
+            "required": false,
+            "choices": [
+              {
+                "name": "One time",
+                "value": "none"
+              },
+              {
+                "name": "Daily",
+                "value": "daily"
+              },
+              {
+                "name": "Weekly",
+                "value": "weekly"
+              },
+              {
+                "name": "Every two weeks",
+                "value": "biweekly"
+              }
+            ]
+          },
+          {
+            "name": "occurrences",
+            "description": "Total dates for recurring events (2–52; default 8)",
+            "type": 4,
+            "required": false,
+            "min_value": 2,
+            "max_value": 52
+          },
+          {
+            "name": "reminders",
+            "description": "Optional reminder posts before each event",
+            "type": 3,
+            "required": false,
+            "choices": [
+              {
+                "name": "No reminders",
+                "value": "none"
+              },
+              {
+                "name": "1 hour before",
+                "value": "1h"
+              },
+              {
+                "name": "24 hours before",
+                "value": "24h"
+              },
+              {
+                "name": "24 hours and 1 hour before",
+                "value": "both"
+              }
+            ]
+          },
+          {
+            "name": "thread",
+            "description": "Open a discussion thread for each event night",
+            "type": 5,
+            "required": false
+          },
+          {
+            "name": "date",
+            "description": "Event date YYYY-MM-DD; use this OR day",
+            "type": 3
+          },
+          {
+            "name": "format",
+            "description": "Event type: BYOT, 3v3, 6v6, 10v10, or a custom format",
+            "type": 3,
+            "max_length": 40
+          },
+          {
+            "name": "signup_close",
+            "description": "Signup deadline YYYY-MM-DD HH:mm in your chosen timezone; default: kickoff",
+            "type": 3
+          },
+          {
+            "name": "win_points",
+            "description": "Points for a win (default 3)",
+            "type": 4,
+            "min_value": 0,
+            "max_value": 100
+          },
+          {
+            "name": "draw_points",
+            "description": "Points for a draw (default 1)",
+            "type": 4,
+            "min_value": 0,
+            "max_value": 100
+          },
+          {
+            "name": "loss_points",
+            "description": "Points for a loss (default 0)",
+            "type": 4,
+            "min_value": 0,
+            "max_value": 100
+          }
         ]
       },
-      {"name":"list","description":"Privately list upcoming RSVP events in this server","type":1},
-      {"name":"cancel","description":"Creator or UFB admin: stop an event and its recurrence","type":1,"options":[
-        {"name":"event_id","description":"ID shown on the post or in /rsvp list","type":4,"required":true,"min_value":1}
-      ]}
+      {
+        "name": "list",
+        "description": "Privately list upcoming RSVP events in this server",
+        "type": 1
+      },
+      {
+        "name": "cancel",
+        "description": "Creator or UFB admin: stop an event and its recurrence",
+        "type": 1,
+        "options": [
+          {
+            "name": "event_id",
+            "description": "ID shown on the post or in /rsvp list",
+            "type": 4,
+            "required": true,
+            "min_value": 1
+          }
+        ]
+      }
     ]
   },
   {
@@ -799,9 +963,23 @@
         "description": "Link, inspect or clear this league's website statistics feed",
         "type": 1,
         "options": [
-          {"name":"league","description":"League in this Discord server","type":3,"required":true,"autocomplete":true},
-          {"name":"url","description":"Public UFL website season-data JSON URL","type":3},
-          {"name":"clear","description":"Remove the linked website source","type":5}
+          {
+            "name": "league",
+            "description": "League in this Discord server",
+            "type": 3,
+            "required": true,
+            "autocomplete": true
+          },
+          {
+            "name": "url",
+            "description": "Public UFL website season-data JSON URL",
+            "type": 3
+          },
+          {
+            "name": "clear",
+            "description": "Remove the linked website source",
+            "type": 5
+          }
         ]
       },
       {

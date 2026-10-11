@@ -16,6 +16,16 @@ Each Discord server owns its own leagues and teams. After `/setup create`, an ad
 
 `/matches team:<registered team> count:9` requests up to nine recent FC27 games, with 3 and 6 also available. The EA relay may return fewer games; the command never invents missing results.
 
+## Player event signup cards
+
+`/rsvp create` now supports individual player events in any format, including BYOT, 3v3, 6v6, and 10v10. Staff can omit `team` for a community event; team managers can still choose their own registered team. Required fields are `name`, `time`, and `timezone`, plus either `day` or `date` (`YYYY-MM-DD`).
+
+Example: `/rsvp create name:Friday 6v6 Cup time:8pm timezone:Central date:2026-10-16 format:6v6 signup_close:2026-10-16 19:55 win_points:3 draw_points:1 loss_points:0`.
+
+The card shows the title, format, W/D/L points, signup deadline, start time, and four counted player lists: Sign Up, Tentative, No, Substitute. One response is saved per Discord account per event; changing it moves the player between lists. The deadline is enforced in the database write, not just in the displayed buttons. Omitted points default to 3/1/0, and omitted signup deadlines default to kickoff. Recurring events retain the same deadline lead time; that lead must be shorter than the repeat interval. Dates use the creator's selected timezone and display locally for each Discord reader. BYOT currently means individual player signups, not linked-team registration. Existing events and saved attendance are preserved by migration 0032.
+
+The deployed command schema is `assets/stat-backgrounds/commands.json`, synchronized automatically by the Worker. The legacy `register-commands.mjs`/export script does not contain all current schema changes; do not run it to republish or regenerate the production schema. Tests can use `UFB_SEASON_FIXTURE` to point to the website's season-data JSON when the bot is checked out separately.
+
 ## FC 27 patch notes
 
 `/setup patches` is available to administrators in every installed Discord server. Each server runs it once to create or reuse its own read-only `#fc27-patch-notes` channel and post the newest update. The existing scheduled Worker checks configured servers every 15 minutes, posts newly published EA FC 27 patch cards, and edits an existing post if EA changes its notes or confirms it live. The title filter admits versioned patches, title updates, hotfixes, bug fixes, and update notes; it excludes community updates, spotlights, feedback, rewards, and developer features. It also checks EA's official Steam publisher announcements for a matching live confirmation. It never relies on PatchBot or the EA match-data relay. The primary source is the [EA SPORTS FC Tracker](https://trello.com/b/keigLn6R/ea-sports-fc-tracker), linked from EA's own FC 27 Game Info Hub. EA Forums currently challenges unattended Worker requests, so polling its HTML directly is unreliable. No `@everyone` ping is sent. Re-running setup does not make a duplicate channel or post. `/info reset` removes only that server's saved patch-channel configuration and delivery tracking, but leaves the Discord channel and already-published messages in place like other bot channels.
