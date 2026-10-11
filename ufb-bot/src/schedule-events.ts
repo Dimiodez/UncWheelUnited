@@ -62,7 +62,9 @@ export async function publishEventSignupImage(env:Env,i:DiscordInteraction,post:
   eventImageUrl(i,options);
   const attachment=i.data!.resolved!.attachments![opt(options,'image')];
   stage='download';
-  const response=await post(attachment.url,{redirect:'error',signal:AbortSignal.timeout(15000)});
+  // workerd rejects redirect:'error' before making any network request.
+  // Manual mode preserves the no-redirect security rule; readEventImage rejects 3xx.
+  const response=await post(attachment.url,{redirect:'manual',signal:AbortSignal.timeout(15000)});
   httpStatus=response.status;
   stage='read-image';
   const bytes=await readEventImage(response);
