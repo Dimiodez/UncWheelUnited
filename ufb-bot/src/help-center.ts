@@ -3,7 +3,7 @@ import type {DiscordInteraction,Env,InteractionResponse} from './types';
 
 const API='https://discord.com/api/v10';
 const MARKER='UFB_HELP_CENTER_V1';
-const CONTENT_VERSION='20261011-interest-events-v3';
+const CONTENT_VERSION='20261011-event-images-v4';
 const EVERYONE_DENY=(2048n|34359738368n|274877906944n).toString();
 const BOT_ALLOW=(1024n|2048n|16384n|32768n|65536n|17179869184n|34359738368n|274877906944n).toString();
 export const UFB_BOT_PERMISSIONS=(16n|1024n|2048n|16384n|32768n|65536n|131072n|17179869184n|34359738368n|274877906944n|2147483648n).toString();
@@ -42,6 +42,7 @@ const sections:HelpSection[]=[
   'The next Wednesday at 7 PM Central is used; Discord displays it in each member’s timezone. The event post and each later occurrence ping @everyone. Members use Yes, Tentative or No; changing an answer never pings again.',
   '`/event create` — gauge player interest with just a name. Optional: format (BYOT, 3v3, 6v6, 10v10 or custom), win_points/draw_points/loss_points (default 3/1/0), team, and thread. No day, date, time or timezone is needed. Staff can omit team for a community event; team managers can select their own team. Four choices: Sign Up, Tentative, No, Substitute. Signups stay open until the creator or an administrator uses `/event close event_id:ID` (or `/event cancel`). `/event list` shows open posts. Create a separate `/rsvp` later when ready to schedule; the interest signup does not schedule anything automatically.',
   'With reminders and a thread, full 24-hour/1-hour reminders go inside the event thread. A short @everyone link in the main channel ensures everyone is notified. If the thread is unavailable, the full reminder appears in the channel. The bot needs Mention Everyone permission there.',
+  '`/event create image:` — optionally upload a PNG, JPG, WebP or GIF flyer. It appears above the signup card and remains visible when players change their answers. Images stay hosted on Discord; no extra storage service is needed.',
   '`/rsvp list` and `/rsvp cancel` — review upcoming events or stop your own recurring event.',
   '`/leaguestats` — print the top five for goals, assists and average match rating.',
   'Choose a league created in this server. Administrators link its website feed with `/setup leaguesource`; EA match sheets use the live FC27 feed.'

@@ -1,7 +1,7 @@
 import type {Env} from './types';
 import {UFB_BOT_PERMISSIONS} from './help-center';
 
-const COMMAND_SCHEMA_VERSION='20261011-interest-events3';
+const COMMAND_SCHEMA_VERSION='20261011-event-images4';
 const INSTALL_PERMISSIONS_VERSION='20260927-rsvp-mention-everyone1';
 const COMMAND_AUDIT_VERSION='20260929-team-managers-audit1';
 const PATCH_PILOT_GUILD_ID='1510828576709148742';

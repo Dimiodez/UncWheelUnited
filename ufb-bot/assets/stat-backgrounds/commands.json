@@ -1173,6 +1173,11 @@
             "type": 4,
             "min_value": 0,
             "max_value": 100
+          },
+          {
+            "name": "image",
+            "description": "Optional PNG, JPG, WebP or GIF flyer shown above the signup card",
+            "type": 11
           }
         ]
       },

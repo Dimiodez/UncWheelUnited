@@ -32,6 +32,7 @@ const eventCreateSchema=commandSchema.find(command=>command.name==='event').opti
 assert.deepEqual(eventCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name']);
 for(const key of ['format','win_points','draw_points','loss_points']){assert.ok(eventCreateSchema.options.some(option=>option.name===key));assert.ok(!rsvpCreateSchema.options.some(option=>option.name===key));}
 for(const key of ['day','date','time','timezone','signup_close','repeat','reminders'])assert.ok(!eventCreateSchema.options.some(option=>option.name===key));
+assert.equal(eventCreateSchema.options.find(option=>option.name==='image').type,11);assert.ok(!eventCreateSchema.options.find(option=>option.name==='image').required);
 for(const name of ['schedule','leaguestats']){const league=commandSchema.find(command=>command.name===name).options.find(option=>option.name==='league');assert.equal(league.autocomplete,true);assert.equal(league.choices,undefined);}
 assert.ok(!commandSchema.some(command=>command.name==='leaderboard'));
 class Statement {constructor(sql){this.sql=sql;this.args=[]}bind(...args){this.args=args;return this}async first(){return db.prepare(this.sql).get(...this.args)??null}async all(){return {results:db.prepare(this.sql).all(...this.args)}}async run(){const r=db.prepare(this.sql).run(...this.args);return {meta:{changes:Number(r.changes),last_row_id:Number(r.lastInsertRowid)}}}}
@@ -148,6 +149,19 @@ assert.match((await call('guest','event','close',{event_id:communitySeries.id}))
 assert.match((await call('staff','event','close',{event_id:communitySeries.id})).data.content,/Closed interest signups/);
 assert.match((await respond('substitute')).data.content,/closed/);
 assert.equal(db.prepare('SELECT response FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).response,'yes');
+// Optional images render above the text and survive signup updates and discussion-thread edits.
+const imageId='123456789012345678',imageUrl=`https://cdn.discordapp.com/attachments/234567890123456789/${imageId}/flyer.png`;
+const imageCreate=()=>{const i=interaction('staff','event','create',{name:'Flyer Event',format:'3v3',image:imageId,thread:true});i.member.permissions='8';i.id='flyer-event-create';i.application_id='app';i.token='token';i.data.resolved={attachments:{[imageId]:{id:imageId,filename:'flyer.png',content_type:'image/png',url:imageUrl+'?ex=expired&is=old&hm=signature',width:1200,height:1600}}};return i;};
+const imageSeriesCount=db.prepare('SELECT COUNT(*) AS n FROM schedule_series').get().n;
+const missingImage=imageCreate();delete missingImage.data.resolved;assert.match((await handleCommand(env,missingImage)).data.content,/Attach a PNG/);
+for(const badUrl of ['https://evil.example/flyer.png','http://cdn.discordapp.com/attachments/234567890123456789/'+imageId+'/flyer.png','https://cdn.discordapp.com.evil.example/attachments/234567890123456789/'+imageId+'/flyer.png','https://cdn.discordapp.com/attachments/234567890123456789/999/flyer.png']){const i=imageCreate();i.data.resolved.attachments[imageId].url=badUrl;assert.match((await handleCommand(env,i)).data.content,/uploaded directly to Discord/);}
+const svgImage=imageCreate();svgImage.data.resolved.attachments[imageId].content_type='image/svg+xml';svgImage.data.resolved.attachments[imageId].filename='flyer.svg';assert.match((await handleCommand(env,svgImage)).data.content,/Attach a PNG/);
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_series').get().n,imageSeriesCount);
+const flyerPost=await handleCommand(env,imageCreate());assert.equal(flyerPost.type,4);assert.equal(flyerPost.data.embeds[0].image.url,imageUrl);assert.equal(flyerPost.data.embeds[0].title,undefined);assert.match(flyerPost.data.embeds[1].title,/Flyer Event/);assert.equal(flyerPost.data.components[0].components.length,4);
+const flyerSeries=db.prepare("SELECT * FROM schedule_series WHERE name='Flyer Event'").get();assert.equal(flyerSeries.image_url,imageUrl);
+const flyerOccurrence=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=?').get(flyerSeries.id);
+for(const choice of ['yes','tentative','no','substitute']){const update=await handleCommand(env,{...interaction('image-player','event',null),type:3,data:{custom_id:`event-signup:${flyerOccurrence.id}:${choice}`}});assert.equal(update.type,7);assert.equal(update.data.embeds[0].image.url,imageUrl);assert.equal(update.data.embeds[1].fields.length,4);}
+const imageThreadEdits=[];await captureOriginalRsvpPost({...env,DISCORD_BOT_TOKEN:'test'},imageCreate(),async(url,init={})=>{if(init.method==='PATCH')imageThreadEdits.push(JSON.parse(init.body));return Response.json({id:url.endsWith('/threads')?'flyer-thread':'flyer-message'});});assert.equal(imageThreadEdits[0].embeds[0].image.url,imageUrl);assert.match(imageThreadEdits[0].embeds[1].description,/flyer-thread/);
 // Updating the constraint must preserve existing attendance and timestamps.
 const migrationDb=new DatabaseSync(':memory:');migrationDb.exec('PRAGMA foreign_keys=ON');
 for(const file of readdirSync(new URL('../migrations/',import.meta.url)).filter(f=>f.endsWith('.sql')&&!f.startsWith('0032')).sort())migrationDb.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));
@@ -612,7 +626,7 @@ try{
  await refreshExistingHelpCenters(helpEnv);
  const rsvpGuide=discordCalls.find(call=>call.method==='PATCH'&&call.body?.embeds?.[0]?.description?.includes('name:Practice Nights'));
  assert.ok(rsvpGuide);assert.match(rsvpGuide.body.embeds[0].description,/reminders go inside the event thread/);
- assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-interest-events-v3');
+ assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-event-images-v4');
  const callsAfterRefresh=discordCalls.length;await refreshExistingHelpCenters(helpEnv);assert.equal(discordCalls.length,callsAfterRefresh);
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
 }finally{globalThis.fetch=originalFetch;}

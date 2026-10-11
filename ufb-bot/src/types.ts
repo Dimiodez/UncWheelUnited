@@ -20,6 +20,7 @@ export interface Env {
 }
 
 export type DiscordOption = { name: string; type?: number; value?: string | number | boolean; focused?: boolean; options?: DiscordOption[] };
+export type DiscordAttachment = {id:string;filename:string;url:string;content_type?:string;width?:number;height?:number;size?:number};
 
 export interface DiscordInteraction {
   type: number;
@@ -31,10 +32,10 @@ export interface DiscordInteraction {
   channel_id?: string;
   member?: { user: { id: string; username: string; global_name?: string | null }; roles: string[]; permissions?: string };
   user?: { id: string; username: string; global_name?: string | null };
-  data?: { name?: string; custom_id?: string; options?: DiscordOption[]; values?: string[]; components?:Array<{components:Array<{custom_id:string;value:string}>}>; resolved?: {channels?:Record<string,{id:string;type:number}>} };
+  data?: { name?: string; custom_id?: string; options?: DiscordOption[]; values?: string[]; components?:Array<{components:Array<{custom_id:string;value:string}>}>; resolved?: {channels?:Record<string,{id:string;type:number}>;attachments?:Record<string,DiscordAttachment>} };
 }
 
 export type InteractionResponse = {
   type: number;
-  data?: { custom_id?:string;title?:string;content?: string; flags?: number; allowed_mentions?:{parse:Array<'everyone'|'roles'|'users'>}; embeds?: Array<{ title?: string; description?: string; color?: number; fields?: Array<{ name: string; value: string; inline?: boolean }> }>; components?: unknown[]; choices?: Array<{ name: string; value: string }> };
+  data?: { custom_id?:string;title?:string;content?: string; flags?: number; allowed_mentions?:{parse:Array<'everyone'|'roles'|'users'>}; embeds?: Array<{ title?: string; description?: string; color?: number; image?:{url:string}; fields?: Array<{ name: string; value: string; inline?: boolean }> }>; components?: unknown[]; choices?: Array<{ name: string; value: string }> };
 };
