@@ -29,8 +29,9 @@ const automodeSchema=commandSchema.find(command=>command.name==='automode');asse
 assert.ok(!commandSchema.some(command=>command.name==='matchnight'),'Legacy /matchnight should not be published alongside /rsvp');
 const rsvpCreateSchema=commandSchema.find(command=>command.name==='rsvp').options.find(option=>option.name==='create');assert.deepEqual(rsvpCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name','team','day','time','timezone']);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='team').autocomplete,true);assert.equal(rsvpCreateSchema.options.find(option=>option.name==='day').choices.length,7);assert.ok(rsvpCreateSchema.options.some(option=>option.name==='reminders')&&rsvpCreateSchema.options.some(option=>option.name==='thread'));
 const eventCreateSchema=commandSchema.find(command=>command.name==='event').options.find(option=>option.name==='create');
-assert.deepEqual(eventCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name','time','timezone']);
-for(const key of ['format','date','signup_close','win_points','draw_points','loss_points']){assert.ok(eventCreateSchema.options.some(option=>option.name===key));assert.ok(!rsvpCreateSchema.options.some(option=>option.name===key));}
+assert.deepEqual(eventCreateSchema.options.filter(option=>option.required).map(option=>option.name),['name']);
+for(const key of ['format','win_points','draw_points','loss_points']){assert.ok(eventCreateSchema.options.some(option=>option.name===key));assert.ok(!rsvpCreateSchema.options.some(option=>option.name===key));}
+for(const key of ['day','date','time','timezone','signup_close','repeat','reminders'])assert.ok(!eventCreateSchema.options.some(option=>option.name===key));
 for(const name of ['schedule','leaguestats']){const league=commandSchema.find(command=>command.name===name).options.find(option=>option.name==='league');assert.equal(league.autocomplete,true);assert.equal(league.choices,undefined);}
 assert.ok(!commandSchema.some(command=>command.name==='leaderboard'));
 class Statement {constructor(sql){this.sql=sql;this.args=[]}bind(...args){this.args=args;return this}async first(){return db.prepare(this.sql).get(...this.args)??null}async all(){return {results:db.prepare(this.sql).all(...this.args)}}async run(){const r=db.prepare(this.sql).run(...this.args);return {meta:{changes:Number(r.changes),last_row_id:Number(r.lastInsertRowid)}}}}
@@ -112,23 +113,18 @@ const recurringSecond=db.prepare('SELECT * FROM schedule_occurrences WHERE serie
 assert.equal(recurringSecond.thread_id,'next-thread');
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_reminders WHERE occurrence_id=?').get(recurringSecond.id).n,1);
 // Community events require staff, but players do not need a registered team to sign up.
-const communityStart=new Date(Date.now()+48*3_600_000).toISOString().slice(0,16).replace('T',' ');
-const communityClose=new Date(Date.now()+47*3_600_000).toISOString().slice(0,16).replace('T',' ');
-const communityInput={name:'Community BYOT',date:communityStart.slice(0,10),time:communityStart.slice(11),timezone:'UTC',format:'BYOT',signup_close:communityClose,win_points:5,draw_points:2,loss_points:0,repeat:'weekly',occurrences:2};
+const communityInput={name:'Community BYOT',format:'BYOT',win_points:5,draw_points:2,loss_points:0};
 assert.match((await call('guest','event','create',communityInput)).data.content,/Community events/);
 assert.match((await call('host','rsvp','create',communityInput)).data.content,/registered team/);
 const staffCreate=options=>handleCommand(env,{...interaction('staff','event','create',options),member:{user:{id:'staff',username:'staff'},roles:[],permissions:'8'}});
-assert.match((await staffCreate({...communityInput,day:'monday'})).data.content,/either date or day/);
-assert.match((await staffCreate({...communityInput,signup_close:new Date(Date.now()+49*3_600_000).toISOString().slice(0,16).replace('T',' ')})).data.content,/at or before/);
 assert.match((await staffCreate({...communityInput,win_points:-1})).data.content,/whole-number/);
 assert.match((await staffCreate({...communityInput,win_points:1.5})).data.content,/whole-number/);
-assert.match((await staffCreate({...communityInput,date:'2026-02-30'})).data.content,/invalid/);
 const communityPost=await staffCreate(communityInput);assert.equal(communityPost.type,4);
 assert.match(communityPost.data.embeds[0].description,/individual players, not registered teams/);
 assert.match(communityPost.data.embeds[0].description,/W: 5 · D: 2 · L: 0/);
-assert.match(communityPost.data.embeds[0].description,new RegExp(`<t:${Math.floor(Date.parse(communityClose.replace(' ','T')+'Z')/1000)}:F>`));
+assert.match(communityPost.data.embeds[0].description,/No date or time has been set/);assert.ok(!communityPost.data.embeds[0].description.includes('<t:'));
 assert.deepEqual(communityPost.data.components[0].components.map(button=>button.label),['Sign Up','Tentative','No','Substitute']);
-const communitySeries=db.prepare("SELECT * FROM schedule_series WHERE name='Community BYOT'").get();assert.equal(communitySeries.team_id,null);assert.equal(communitySeries.signup_close_minutes,60);
+const communitySeries=db.prepare("SELECT * FROM schedule_series WHERE name='Community BYOT'").get();assert.equal(communitySeries.team_id,null);assert.equal(communitySeries.interest_only,1);assert.equal(communitySeries.next_post_at,null);
 const communityOccurrence=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=?').get(communitySeries.id);
 const respond=choice=>handleCommand(env,{...interaction('community-player','event',null),type:3,data:{custom_id:`event-signup:${communityOccurrence.id}:${choice}`}});
 assert.match((await call('staff','event','list')).data.content,/Community BYOT/);
@@ -144,12 +140,14 @@ for(const choice of ['yes','tentative','no','substitute','substitute']){
 const substituteUpdate=await respond('substitute');assert.match(substituteUpdate.data.embeds[0].fields[3].name,/Substitutes — 1/);assert.match(substituteUpdate.data.embeds[0].fields[3].value,/community-player/);
 const communityRecurring=[];
 await processRecurringSchedules({...env,DISCORD_BOT_TOKEN:'test'},async(url,init)=>{communityRecurring.push(JSON.parse(init.body));return Response.json({id:'community-recurring'});},communityOccurrence.starts_at+60_000);
-assert.equal(communityRecurring.length,1);assert.match(communityRecurring[0].embeds[0].description,/W: 5 · D: 2 · L: 0/);
-const nextCommunity=db.prepare('SELECT * FROM schedule_occurrences WHERE series_id=? AND id<>?').get(communitySeries.id,communityOccurrence.id);
-assert.match(communityRecurring[0].embeds[0].description,new RegExp(`<t:${Math.floor((nextCommunity.starts_at-3_600_000)/1000)}:F>`));
-db.prepare('UPDATE schedule_occurrences SET starts_at=? WHERE id=?').run(Date.now()+30*60_000,communityOccurrence.id);
-assert.match((await respond('yes')).data.content,/closed/);
-assert.equal(db.prepare('SELECT response FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).response,'substitute');
+assert.equal(communityRecurring.length,0);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schedule_reminders WHERE occurrence_id=?').get(communityOccurrence.id).n,0);
+const realNow=Date.now;Date.now=()=>realNow()+400*86_400_000;
+try{assert.equal((await respond('yes')).type,7);assert.match((await call('staff','event','list')).data.content,/Community BYOT/);}finally{Date.now=realNow;}
+assert.equal((await staffCreate({name:'Just a title'})).type,4);
+assert.match((await call('guest','event','close',{event_id:communitySeries.id})).data.content,/creator/);
+assert.match((await call('staff','event','close',{event_id:communitySeries.id})).data.content,/Closed interest signups/);
+assert.match((await respond('substitute')).data.content,/closed/);
+assert.equal(db.prepare('SELECT response FROM schedule_responses WHERE occurrence_id=?').get(communityOccurrence.id).response,'yes');
 // Updating the constraint must preserve existing attendance and timestamps.
 const migrationDb=new DatabaseSync(':memory:');migrationDb.exec('PRAGMA foreign_keys=ON');
 for(const file of readdirSync(new URL('../migrations/',import.meta.url)).filter(f=>f.endsWith('.sql')&&!f.startsWith('0032')).sort())migrationDb.exec(readFileSync(new URL('../migrations/'+file,import.meta.url),'utf8'));
@@ -614,7 +612,7 @@ try{
  await refreshExistingHelpCenters(helpEnv);
  const rsvpGuide=discordCalls.find(call=>call.method==='PATCH'&&call.body?.embeds?.[0]?.description?.includes('name:Practice Nights'));
  assert.ok(rsvpGuide);assert.match(rsvpGuide.body.embeds[0].description,/reminders go inside the event thread/);
- assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-separate-events-v2');
+ assert.equal(db.prepare("SELECT value FROM bot_metadata WHERE key='help_center_content:guild'").get().value,'20261011-interest-events-v3');
  const callsAfterRefresh=discordCalls.length;await refreshExistingHelpCenters(helpEnv);assert.equal(discordCalls.length,callsAfterRefresh);
  assert.equal(discordCalls.filter(call=>call.method==='POST'&&call.path.endsWith('/threads')).length,5);
 }finally{globalThis.fetch=originalFetch;}

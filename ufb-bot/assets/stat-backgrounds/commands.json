@@ -1121,11 +1121,11 @@
   },
   {
     "name": "event",
-    "description": "Create and manage player signup events",
+    "description": "Gauge player interest without scheduling an event",
     "options": [
       {
         "name": "create",
-        "description": "Create a player signup event with four availability choices",
+        "description": "Post an interest signup; no day, date or time required",
         "type": 1,
         "options": [
           {
@@ -1135,116 +1135,11 @@
             "required": true
           },
           {
-            "name": "time",
-            "description": "Local time, e.g. 7pm or 7:30pm",
-            "type": 3,
-            "required": true
-          },
-          {
-            "name": "timezone",
-            "description": "Choose Central, Eastern, Pacific, or another timezone",
-            "type": 3,
-            "required": true,
-            "autocomplete": true
-          },
-          {
             "name": "team",
             "description": "Optional team; omit for a staff-created community event",
             "type": 3,
             "required": false,
             "autocomplete": true
-          },
-          {
-            "name": "day",
-            "description": "Next occurrence of this weekday",
-            "type": 3,
-            "required": false,
-            "choices": [
-              {
-                "name": "Monday",
-                "value": "monday"
-              },
-              {
-                "name": "Tuesday",
-                "value": "tuesday"
-              },
-              {
-                "name": "Wednesday",
-                "value": "wednesday"
-              },
-              {
-                "name": "Thursday",
-                "value": "thursday"
-              },
-              {
-                "name": "Friday",
-                "value": "friday"
-              },
-              {
-                "name": "Saturday",
-                "value": "saturday"
-              },
-              {
-                "name": "Sunday",
-                "value": "sunday"
-              }
-            ]
-          },
-          {
-            "name": "repeat",
-            "description": "Repeat and post each next occurrence automatically",
-            "type": 3,
-            "required": false,
-            "choices": [
-              {
-                "name": "One time",
-                "value": "none"
-              },
-              {
-                "name": "Daily",
-                "value": "daily"
-              },
-              {
-                "name": "Weekly",
-                "value": "weekly"
-              },
-              {
-                "name": "Every two weeks",
-                "value": "biweekly"
-              }
-            ]
-          },
-          {
-            "name": "occurrences",
-            "description": "Total dates for recurring events (2–52; default 8)",
-            "type": 4,
-            "required": false,
-            "min_value": 2,
-            "max_value": 52
-          },
-          {
-            "name": "reminders",
-            "description": "Optional reminder posts before each event",
-            "type": 3,
-            "required": false,
-            "choices": [
-              {
-                "name": "No reminders",
-                "value": "none"
-              },
-              {
-                "name": "1 hour before",
-                "value": "1h"
-              },
-              {
-                "name": "24 hours before",
-                "value": "24h"
-              },
-              {
-                "name": "24 hours and 1 hour before",
-                "value": "both"
-              }
-            ]
           },
           {
             "name": "thread",
@@ -1253,20 +1148,10 @@
             "required": false
           },
           {
-            "name": "date",
-            "description": "Event date YYYY-MM-DD; use this OR day",
-            "type": 3
-          },
-          {
             "name": "format",
             "description": "Event type: BYOT, 3v3, 6v6, 10v10, or a custom format",
             "type": 3,
             "max_length": 40
-          },
-          {
-            "name": "signup_close",
-            "description": "Signup deadline YYYY-MM-DD HH:mm in your chosen timezone; default: kickoff",
-            "type": 3
           },
           {
             "name": "win_points",
@@ -1293,12 +1178,26 @@
       },
       {
         "name": "list",
-        "description": "Privately list upcoming player events in this server",
+        "description": "List open interest signups and existing scheduled events",
         "type": 1
       },
       {
         "name": "cancel",
         "description": "Creator or UFB admin: stop an event and its recurrence",
+        "type": 1,
+        "options": [
+          {
+            "name": "event_id",
+            "description": "ID shown on the event post or in /event list",
+            "type": 4,
+            "required": true,
+            "min_value": 1
+          }
+        ]
+      },
+      {
+        "name": "close",
+        "description": "Creator or UFB admin: close interest signups and preserve responses",
         "type": 1,
         "options": [
           {
