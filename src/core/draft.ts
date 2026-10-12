@@ -10,7 +10,7 @@ export const orderAt = (draft: DraftState, index = draft.pickIndex) =>
   draft.style === "snake" && Math.floor(index / draft.order.length) % 2 === 1
     ? [...draft.order].reverse() : draft.order;
 export const pickingTeam = (draft: DraftState) =>
-  !draft.complete && draft.order.length ? orderAt(draft)[draft.pickIndex % draft.order.length] : undefined;
+  !draft.complete && draft.order.length ? draft.replacementTeamId || orderAt(draft)[draft.pickIndex % draft.order.length] : undefined;
 
 export function createDraftTeam(session: Session, rawName: string, capacity: number): {session: Session; error?: string} {
  const name=rawName.trim();
@@ -48,6 +48,7 @@ export function moveDraftPlayer(session: Session, mode: "captain" | "fantasy", p
     captainId: t.id !== teamId && t.captainId === playerId ? undefined : t.captainId
   }));
   const nextDraft = { ...draft, steals: { ...draft.steals },
+    replacementTeamId: undefined as string | undefined,
     message: source ? `${target.name} stole ${player.name} from ${source.name}.` : `${target.name} drafted ${player.name}.` };
   if (elephant && source) nextDraft.steals[playerId] = (nextDraft.steals[playerId] || 0) + 1;
   if (draft.order.length && (!source || elephant)) {
@@ -61,8 +62,15 @@ export function moveDraftPlayer(session: Session, mode: "captain" | "fantasy", p
           (nextDraft.steals[pid] || 0) < draft.stealLimit))));
     };
     let found = false;
+    if (elephant && source && canPick(source.id)) {
+      // Hold the normal turn until the displaced captain replaces their player.
+      // Another steal passes the replacement turn to the newly displaced team.
+      nextDraft.replacementTeamId = source.id;
+      nextDraft.message += ` ${source.name} gets an immediate replacement pick.`;
+      found = true;
+    }
     // Two complete traversals cover snake endpoints even when all other teams are full.
-    for (let offset = 1; offset <= draft.order.length * 2; offset++) {
+    for (let offset = 1; !found && offset <= draft.order.length * 2; offset++) {
       const index = draft.pickIndex + offset;
       if (draft.style === "random" && index % draft.order.length === 0) {
         nextDraft.order = [...nextDraft.order];

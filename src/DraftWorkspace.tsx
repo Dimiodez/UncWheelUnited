@@ -77,7 +77,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
 
   const pickCaptains = () => {
     if (activeElephant) return;
-    patchDraft({ order: [], pickIndex: 0, steals: {}, complete: false, message: "" });
+    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, steals: {}, complete: false, message: "" });
     const candidates = shuffle(session.players);
     if (candidates.length < session.teams.length) return;
     const selected = candidates.slice(0, session.teams.length).map((player) => player.id);
@@ -122,7 +122,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
     setDraftOrder([]);
     setDraftPickIndex(0);
     setSelectedCaptainIds([]);
-    patchDraft({ order: [], pickIndex: 0, selectedCaptainIds: [], steals: {}, complete: false, message: "" });
+    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, selectedCaptainIds: [], steals: {}, complete: false, message: "" });
     setDraftError("");
   };
 
@@ -131,7 +131,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
     setDraftOrder([]);
     setDraftPickIndex(0);
     setSelectedCaptainIds([]);
-    patchDraft({ order: [], pickIndex: 0, selectedCaptainIds: [], steals: {}, complete: false, message: "" });
+    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, selectedCaptainIds: [], steals: {}, complete: false, message: "" });
   };
 
   const setUpTestDraft = () => {
@@ -212,14 +212,14 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
     </section>}
     {mode === "captain" && <aside className="white-elephant-settings">
       <label className="elephant-toggle"><input type="checkbox" checked={draft.whiteElephant} disabled={draftOrder.length > 0} onChange={event => patchDraft({ whiteElephant: event.target.checked })} /><strong>White Elephant draft</strong></label>
-      <p>Draft from the pool or steal from another team. Either action uses your turn and advances the draft order. Captains are protected; full teams are skipped. A team that loses a player picks again at its next eligible turn.</p>
+      <p>Draft from the pool or steal from another team. A stolen player's team gets an immediate replacement pick before the normal order continues. They can draft or steal; another steal gives that team a replacement pick. Replacement picks do not use up regular turns. Captains are protected; full teams are skipped.</p>
       {elephant && <div className="elephant-options">
         <label>Maximum steals per player<select disabled={activeElephant} value={draft.stealLimit} onChange={event => patchDraft({ stealLimit: Number(event.target.value) as 1 | 2 })}><option value="1">Once — lock after 1 steal</option><option value="2">Twice — lock after 2 steals</option></select></label>
         <label className="elephant-toggle"><input type="checkbox" checked={draft.holidayTheme} onChange={event => patchDraft({ holidayTheme: event.target.checked })} />Holiday accents · Christmas + Hanukkah</label>
         <small>Choose one or two steals for your group before picking the draft order. Reset the draft pool to change the rules.</small>
       </div>}
     </aside>}
-    {(draftError || draft.message || draft.complete) && <p className="elephant-message" role="status">{draftError || (draft.complete ? "Draft finished — no eligible picks remain. " + draft.message : draft.message)}</p>}
+    {(draftError || draft.message || draft.complete) && <p className="elephant-message" role="status">{draftError || (draft.complete ? "Draft finished — no eligible picks remain. " + draft.message : draft.message)}{!draftError && !draft.complete && draft.replacementTeamId && <strong> Replacement pick: {session.teams.find(team => team.id === draft.replacementTeamId)?.name}. Normal draft order resumes afterward.</strong>}</p>}
 
     {testToolsEnabled && <aside className="test-tools-panel"><div><strong>{mode === "captain" ? "Captain Draft" : "Fantasy Draft"} test tools</strong><span>Temporary viability-testing controls</span></div><button onClick={loadTestDraft}>Load sample setup</button><button onClick={setUpTestDraft}>Set up captains</button><button onClick={fillTestRosters}>Fill team rosters</button></aside>}
 

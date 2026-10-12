@@ -58,6 +58,7 @@ export type DraftState = {
   style: "snake" | "standard" | "random";
   order: string[];
   pickIndex: number;
+  replacementTeamId?: string;
   selectedCaptainIds: string[];
   whiteElephant: boolean;
   stealLimit: 1 | 2;
