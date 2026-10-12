@@ -12,6 +12,42 @@ function setup(limit: 1 | 2 = 1): Session {
 }
 const move=(s:Session,p:string,t:string)=>moveDraftPlayer(s,"captain",p,t);
 describe("White Elephant captain draft",()=>{
+ it("caps captain steals at one including replacement turns, while allowing pool picks",()=>{
+  let s=setup(2);
+  s=move(s,"p3","t0").session;
+  s=move(s,"p3","t1").session;
+  s=move(s,"p3","t0").session;
+  expect(move(s,"p3","t1").error).toContain("locked");
+  s=move(s,"p4","t1").session;
+  s=move(s,"p5","t2").session;
+  s=move(s,"p6","t2").session;
+  const failed=move(s,"p5","t1");
+  expect(failed.error).toContain("used all their steals");
+  expect(failed.session).toBe(s);
+  expect(s.drafts!.captain!.captainSteals).toEqual({t1:1,t0:1});
+  expect(move(s,"p7","t1").error).toBeUndefined();
+ });
+ it("allows two captain steals, persists their totals, and never counts pool picks",()=>{
+  let s=setup(2);s.drafts!.captain!.captainStealLimit=2;s.teams[1].capacity=4;
+  s.players.push({...s.players[7],id:"p8"});
+  s.players.push({...s.players[7],id:"p9"});
+  s=move(s,"p3","t0").session;s=move(s,"p3","t1").session;
+  s=move(s,"p4","t0").session;s=move(s,"p5","t2").session;
+  s=move(s,"p6","t2").session;s=move(s,"p4","t1").session;
+  expect(s.drafts!.captain!.captainSteals!.t1).toBe(2);
+  expect(s.drafts!.captain!.captainSteals!.t2).toBeUndefined();
+  s=JSON.parse(JSON.stringify(s));
+  s=move(s,"p7","t0").session;
+  s=move(s,"p8","t0").session;
+  expect(pickingTeam(s.drafts!.captain!)).toBe("t1");
+  expect(move(s,"p5","t1").error).toContain("used all their steals");
+ });
+ it("finishes when an empty pool and spent captain allowances leave no legal picks",()=>{
+  let s=setup(2);s.players=s.players.slice(0,4);
+  s=move(s,"p3","t0").session;s=move(s,"p3","t1").session;
+  s=move(s,"p3","t0").session;
+  expect(s.drafts!.captain!.complete).toBe(true);
+ });
  it("creates teams directly before drafting with the selected roster size",()=>{
   const s=setup();s.drafts!.captain!.order=[];
   const result=createDraftTeam(s,"  Snowball United  ",6);

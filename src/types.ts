@@ -62,6 +62,8 @@ export type DraftState = {
   selectedCaptainIds: string[];
   whiteElephant: boolean;
   stealLimit: 1 | 2;
+  captainStealLimit?: 1 | 2;
+  captainSteals?: Record<string, number>;
   holidayTheme: boolean;
   steals: Record<string, number>;
   complete: boolean;

@@ -4,7 +4,7 @@ import { addTeam } from "./session";
 export const emptyDraft = (): DraftState => ({
   style: "snake", order: [], pickIndex: 0, selectedCaptainIds: [],
   whiteElephant: false, stealLimit: 1, holidayTheme: true,
-  steals: {}, complete: false, message: ""
+  steals: {}, captainStealLimit: 1, captainSteals: {}, complete: false, message: ""
 });
 export const orderAt = (draft: DraftState, index = draft.pickIndex) =>
   draft.style === "snake" && Math.floor(index / draft.order.length) % 2 === 1
@@ -41,6 +41,8 @@ export function moveDraftPlayer(session: Session, mode: "captain" | "fantasy", p
       return fail("Captains cannot be drafted or stolen.");
     if (source && (draft.steals[playerId] || 0) >= draft.stealLimit)
       return fail("That player is locked: the steal limit has been reached.");
+    if (source && (draft.captainSteals?.[teamId] || 0) >= (draft.captainStealLimit ?? 1))
+      return fail("This captain has used all their steals. Draft an available player instead.");
   }
   const teams = session.teams.map(t => ({
     ...t,
@@ -48,16 +50,20 @@ export function moveDraftPlayer(session: Session, mode: "captain" | "fantasy", p
     captainId: t.id !== teamId && t.captainId === playerId ? undefined : t.captainId
   }));
   const nextDraft = { ...draft, steals: { ...draft.steals },
+    captainSteals: { ...draft.captainSteals },
     replacementTeamId: undefined as string | undefined,
     message: source ? `${target.name} stole ${player.name} from ${source.name}.` : `${target.name} drafted ${player.name}.` };
-  if (elephant && source) nextDraft.steals[playerId] = (nextDraft.steals[playerId] || 0) + 1;
+  if (elephant && source) {
+    nextDraft.steals[playerId] = (nextDraft.steals[playerId] || 0) + 1;
+    nextDraft.captainSteals[teamId] = (nextDraft.captainSteals[teamId] || 0) + 1;
+  }
   if (draft.order.length && (!source || elephant)) {
     const freePlayers = session.players.filter(p =>
       !draft.selectedCaptainIds.includes(p.id) && !teams.some(t => t.playerIds.includes(p.id)));
     const canPick = (id: string) => {
       const team = teams.find(t => t.id === id);
       return team && team.playerIds.length < team.capacity && (freePlayers.length > 0 ||
-        (elephant && teams.some(other => other.id !== id && other.playerIds.some(pid =>
+        (elephant && (nextDraft.captainSteals[id] || 0) < (draft.captainStealLimit ?? 1) && teams.some(other => other.id !== id && other.playerIds.some(pid =>
           pid !== other.captainId && !draft.selectedCaptainIds.includes(pid) &&
           (nextDraft.steals[pid] || 0) < draft.stealLimit))));
     };

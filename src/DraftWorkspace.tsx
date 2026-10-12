@@ -39,6 +39,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
   const draftRound = draftOrder.length ? Math.floor(draftPickIndex / draftOrder.length) : 0;
   const roundOrder = useMemo(() => draftStyle === "snake" && draftRound % 2 === 1 ? [...draftOrder].reverse() : draftOrder, [draftOrder, draftRound, draftStyle]);
   const currentTeamId = pickingTeam(draft);
+  const currentCaptainAtLimit = !!currentTeamId && (draft.captainSteals?.[currentTeamId] || 0) >= (draft.captainStealLimit ?? 1);
 
   const movePlayer = (playerId: string, teamId: string) => {
     const result = moveDraftPlayer(session, mode, playerId, teamId);
@@ -77,7 +78,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
 
   const pickCaptains = () => {
     if (activeElephant) return;
-    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, steals: {}, complete: false, message: "" });
+    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, steals: {}, captainSteals: {}, complete: false, message: "" });
     const candidates = shuffle(session.players);
     if (candidates.length < session.teams.length) return;
     const selected = candidates.slice(0, session.teams.length).map((player) => player.id);
@@ -122,7 +123,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
     setDraftOrder([]);
     setDraftPickIndex(0);
     setSelectedCaptainIds([]);
-    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, selectedCaptainIds: [], steals: {}, complete: false, message: "" });
+    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, selectedCaptainIds: [], steals: {}, captainSteals: {}, complete: false, message: "" });
     setDraftError("");
   };
 
@@ -131,7 +132,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
     setDraftOrder([]);
     setDraftPickIndex(0);
     setSelectedCaptainIds([]);
-    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, selectedCaptainIds: [], steals: {}, complete: false, message: "" });
+    patchDraft({ order: [], pickIndex: 0, replacementTeamId: undefined, selectedCaptainIds: [], steals: {}, captainSteals: {}, complete: false, message: "" });
   };
 
   const setUpTestDraft = () => {
@@ -215,8 +216,9 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
       <p>Draft from the pool or steal from another team. A stolen player's team gets an immediate replacement pick before the normal order continues. They can draft or steal; another steal gives that team a replacement pick. Replacement picks do not use up regular turns. Captains are protected; full teams are skipped.</p>
       {elephant && <div className="elephant-options">
         <label>Maximum steals per player<select disabled={activeElephant} value={draft.stealLimit} onChange={event => patchDraft({ stealLimit: Number(event.target.value) as 1 | 2 })}><option value="1">Once — lock after 1 steal</option><option value="2">Twice — lock after 2 steals</option></select></label>
+        <label>Maximum steals per captain<select disabled={activeElephant} value={draft.captainStealLimit ?? 1} onChange={event => patchDraft({ captainStealLimit: Number(event.target.value) as 1 | 2 })}><option value="1">1 steal per captain</option><option value="2">2 steals per captain</option></select></label>
         <label className="elephant-toggle"><input type="checkbox" checked={draft.holidayTheme} onChange={event => patchDraft({ holidayTheme: event.target.checked })} />Holiday accents · Christmas + Hanukkah</label>
-        <small>Choose one or two steals for your group before picking the draft order. Reset the draft pool to change the rules.</small>
+        <small>Set both limits before picking the draft order. Every successful steal, including replacement picks, counts toward the captain's total. Reset the draft pool to change the rules.</small>
       </div>}
     </aside>}
     {(draftError || draft.message || draft.complete) && <p className="elephant-message" role="status">{draftError || (draft.complete ? "Draft finished — no eligible picks remain. " + draft.message : draft.message)}{!draftError && !draft.complete && draft.replacementTeamId && <strong> Replacement pick: {session.teams.find(team => team.id === draft.replacementTeamId)?.name}. Normal draft order resumes afterward.</strong>}</p>}
@@ -250,9 +252,11 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
           const spent = team.playerIds.filter((id) => id !== team.captainId).reduce((sum, id) => sum + roundedCost(session.players.find((player) => player.id === id)?.rating ?? 0), 0);
           const balance = team.budget - spent;
           const teamColor = `hsl(${team.colorHue} 82% 55%)`;
+          const captainStealsUsed = draft.captainSteals?.[team.id] || 0;
           return <article className={`draft-team ${team.id === currentTeamId ? "current-pick" : ""}`} key={team.id} style={{ borderTopColor: teamColor, "--team-color": teamColor } as CSSProperties} onDragOver={(event) => event.preventDefault()} onDrop={(event) => movePlayer(event.dataTransfer.getData("text/player-id"), team.id)}>
             <div className="draft-team-head"><h3>{team.name}</h3><label>Team size <select disabled={activeElephant} value={team.capacity} onChange={(event) => setSession({ ...session, teams: session.teams.map((item) => item.id === team.id ? { ...item, capacity: Number(event.target.value) } : item) })}>{[1,2,3,4,5,6,7,8,9,10,11,12].map((size) => <option key={size}>{size}</option>)}</select></label><span>{team.playerIds.length} / {team.capacity}</span></div>
             <div className="captain-row captain-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.stopPropagation(); setCaptain(event.dataTransfer.getData("text/player-id"), team.id); }}><span>Captain - drop here</span><strong draggable={!activeElephant && Boolean(captain)} onDragStart={(event) => captain && event.dataTransfer.setData("text/player-id", captain.id)}>{captain?.name ?? "Not selected"}</strong></div>
+            {elephant && <p className="elephant-steal-status">Captain steals: {captainStealsUsed}/{draft.captainStealLimit ?? 1}{captainStealsUsed >= (draft.captainStealLimit ?? 1) ? " · Limit reached" : ""}</p>}
             {mode === "fantasy" && <div className="budget-row">
               <label>Starting budget $<input type="number" min="0" value={team.budget} onChange={(event) => setSession({ ...session, teams: session.teams.map((item) => item.id === team.id ? { ...item, budget: Number(event.target.value) } : item) })} /></label>
               <strong className={balance < 0 ? "negative" : ""}>${balance} left</strong>
@@ -262,7 +266,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
                 const player = session.players.find((item) => item.id === playerId)!;
                 const steals = draft.steals[playerId] || 0;
                 const locked = elephant && (playerId === team.captainId || steals >= draft.stealLimit);
-                return <div key={playerId} className={locked ? "elephant-locked" : ""} draggable={!locked} onDragStart={(event) => event.dataTransfer.setData("text/player-id", playerId)}><span>{playerName(session.players, playerId)}{playerId === team.captainId ? " ★" : ""}</span>{elephant && <span className="elephant-steal-status">{playerId === team.captainId ? "Captain · protected" : locked ? `Locked · ${steals}/${draft.stealLimit} steals` : `${steals}/${draft.stealLimit} steals`}</span>}{elephant && playerId !== team.captainId && <button disabled={locked || !currentTeamId || currentTeamId === team.id} onClick={() => currentTeamId && movePlayer(playerId, currentTeamId)}>Steal</button>}{mode === "fantasy" && playerId !== team.captainId && <strong>-${roundedCost(player.rating)}</strong>}</div>;
+                return <div key={playerId} className={locked ? "elephant-locked" : ""} draggable={!locked} onDragStart={(event) => event.dataTransfer.setData("text/player-id", playerId)}><span>{playerName(session.players, playerId)}{playerId === team.captainId ? " ★" : ""}</span>{elephant && <span className="elephant-steal-status">{playerId === team.captainId ? "Captain · protected" : locked ? `Locked · ${steals}/${draft.stealLimit} steals` : `${steals}/${draft.stealLimit} steals`}</span>}{elephant && playerId !== team.captainId && <button disabled={locked || currentCaptainAtLimit || !currentTeamId || currentTeamId === team.id} onClick={() => currentTeamId && movePlayer(playerId, currentTeamId)}>Steal</button>}{mode === "fantasy" && playerId !== team.captainId && <strong>-${roundedCost(player.rating)}</strong>}</div>;
               })}
               <p>Drop players here</p>
             </div>
