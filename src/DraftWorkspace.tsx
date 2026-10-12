@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { emptyDraft, moveDraftPlayer, pickingTeam } from "./core/draft";
+import { createDraftTeam, emptyDraft, moveDraftPlayer, pickingTeam } from "./core/draft";
+import HolidayDraftDecor from "./HolidayDraftDecor";
 import "./white-elephant.css";
 import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import type { Session } from "./types";
@@ -31,6 +32,8 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
   const elephant = mode === "captain" && draft.whiteElephant;
   const activeElephant = elephant && draftOrder.length > 0;
   const [draftError, setDraftError] = useState("");
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamSize, setNewTeamSize] = useState(4);
   const unassigned = session.players.filter((player) => !selectedCaptainIds.includes(player.id) && !session.teams.some((team) => team.playerIds.includes(player.id)));
   const roundedCost = (rating: number) => Math.round(rating);
   const draftRound = draftOrder.length ? Math.floor(draftPickIndex / draftOrder.length) : 0;
@@ -172,6 +175,7 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
 
   return <section className={`draft-workspace ${elephant && draft.holidayTheme ? "holiday-draft" : ""}`}>
     <div className="draft-hero">
+      {elephant && draft.holidayTheme && <HolidayDraftDecor />}
       <div>
         <p className="eyebrow">{mode === "captain" ? "CAPTAIN + DRAFT ORDER" : "ASSIGNED VALUE EVENT"}</p>
         <h2>{mode === "captain" ? "Captain Draft Night" : "Fantasy Value Draft"}</h2>
@@ -192,6 +196,20 @@ export default function DraftWorkspace({ mode, session, setSession, testToolsEna
       </div>
     </div>
 
+    {mode === "captain" && <section className="draft-team-setup" aria-label="Create draft teams">
+      <div><p className="eyebrow">SET UP YOUR TEAMS</p><h3>Teams for this draft <span>{session.teams.length}</span></h3><p>Add your teams here before picking captains and the draft order.</p></div>
+      <form onSubmit={event=>{
+        event.preventDefault();
+        const result=createDraftTeam(session,newTeamName,newTeamSize);
+        setDraftError(result.error||"");
+        if(!result.error){setSession(result.session);setNewTeamName("");}
+      }}>
+        <label>New team name<input aria-label="New draft team name" value={newTeamName} maxLength={80} required disabled={draftOrder.length>0} placeholder="e.g. Snowball United" onChange={event=>setNewTeamName(event.target.value)}/></label>
+        <label>Roster size<select aria-label="New draft team roster size" value={newTeamSize} disabled={draftOrder.length>0} onChange={event=>setNewTeamSize(Number(event.target.value))}>{Array.from({length:12},(_,i)=><option key={i+1} value={i+1}>{i+1} players</option>)}</select></label>
+        <button type="submit" disabled={draftOrder.length>0||!newTeamName.trim()}>+ Add draft team</button>
+      </form>
+      {draftOrder.length>0&&<small>The team list is locked while the draft order is active. Reset the draft pool to add teams.</small>}
+    </section>}
     {mode === "captain" && <aside className="white-elephant-settings">
       <label className="elephant-toggle"><input type="checkbox" checked={draft.whiteElephant} disabled={draftOrder.length > 0} onChange={event => patchDraft({ whiteElephant: event.target.checked })} /><strong>White Elephant draft</strong></label>
       <p>Draft from the pool or steal from another team. Either action uses your turn and advances the draft order. Captains are protected; full teams are skipped. A team that loses a player picks again at its next eligible turn.</p>

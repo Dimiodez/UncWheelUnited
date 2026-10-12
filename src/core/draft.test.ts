@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyDraft, moveDraftPlayer, pickingTeam } from "./draft";
+import { createDraftTeam, emptyDraft, moveDraftPlayer, pickingTeam } from "./draft";
 import { sampleSession } from "./session";
 import type { Session } from "../types";
 
@@ -12,6 +12,21 @@ function setup(limit: 1 | 2 = 1): Session {
 }
 const move=(s:Session,p:string,t:string)=>moveDraftPlayer(s,"captain",p,t);
 describe("White Elephant captain draft",()=>{
+ it("creates teams directly before drafting with the selected roster size",()=>{
+  const s=setup();s.drafts!.captain!.order=[];
+  const result=createDraftTeam(s,"  Snowball United  ",6);
+  expect(result.error).toBeUndefined();expect(result.session.teams).toHaveLength(4);
+  expect(result.session.teams[3]).toMatchObject({name:"Snowball United",capacity:6,playerIds:[]});
+  expect(result.session.teams[3].id).toBeTruthy();
+  expect(s.teams).toHaveLength(3);
+ });
+ it("rejects blank or duplicate names, invalid sizes and changes after order is picked",()=>{
+  const s=setup();expect(createDraftTeam(s,"New",4).error).toContain("locked");
+  s.drafts!.captain!.order=[];
+  expect(createDraftTeam(s," ",4).error).toBeTruthy();
+  expect(createDraftTeam(s,s.teams[0].name.toUpperCase(),4).error).toContain("already exists");
+  for(const size of [0,13,2.5,NaN])expect(createDraftTeam(s,"New",size).error).toBeTruthy();
+ });
  it("a draft and a steal each consume one turn and remove only the stolen player",()=>{
   let s=setup();s=move(s,"p3","t0").session;
   expect(pickingTeam(s.drafts!.captain!)).toBe("t1");

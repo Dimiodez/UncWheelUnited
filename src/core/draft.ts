@@ -1,4 +1,5 @@
 import type { DraftState, Session } from "../types";
+import { addTeam } from "./session";
 
 export const emptyDraft = (): DraftState => ({
   style: "snake", order: [], pickIndex: 0, selectedCaptainIds: [],
@@ -10,6 +11,16 @@ export const orderAt = (draft: DraftState, index = draft.pickIndex) =>
     ? [...draft.order].reverse() : draft.order;
 export const pickingTeam = (draft: DraftState) =>
   !draft.complete && draft.order.length ? orderAt(draft)[draft.pickIndex % draft.order.length] : undefined;
+
+export function createDraftTeam(session: Session, rawName: string, capacity: number): {session: Session; error?: string} {
+ const name=rawName.trim();
+ if(session.drafts?.captain?.order.length) return {session,error:"The team list is locked after picking the draft order. Reset the draft pool before adding teams."};
+ if(!name||name.length>80) return {session,error:"Enter a team name between 1 and 80 characters."};
+ if(!Number.isInteger(capacity)||capacity<1||capacity>12) return {session,error:"Choose a roster size between 1 and 12."};
+ if(session.teams.some(team=>team.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase()))
+   return {session,error:"A team with that name already exists."};
+ return {session:addTeam(session,name,capacity)};
+}
 
 export function moveDraftPlayer(session: Session, mode: "captain" | "fantasy", playerId: string, teamId: string):
   { session: Session; error?: string } {

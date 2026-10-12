@@ -8,4 +8,8 @@ Draft state is part of Session.drafts, including order, turn, selected captains,
 
 Holiday styling defaults on when White Elephant is enabled, with an independent optional switch. Navy/red, icy blue, gold, snowflake and Hanukkah accents are scoped to this draft; other tools and the rest of the website are unchanged. Draft/Steal buttons offer a touch-friendly alternative to dragging.
 
+The strengthened holiday treatment adds thin snow caps to the hero, settings, team setup, draft order, captain pool, roster section bars and team headings. A noninteractive SVG header decoration includes hanging ornaments, a gift and a nine-candle Hanukkiah. Decorations never intercept drags/clicks and disappear when holiday mode is off.
+
+Captain Draft includes a direct Add Team form with a name and 1–12 player roster size. Names are trimmed and duplicates rejected. Team creation is blocked once the draft order exists so a running draft cannot silently gain another team. This uses the existing session/team model and persistence; no separate league registrations are created.
+
 Build with the existing Vite toolchain. Public UNC wheel deployment copies only the generated main JS/CSS into wheel-app/wheel.js and wheel-app/wheel.css, retaining the live theme bridge, other assets and Aggregate BYOT integration. No bot, league workshop, roster database or website-account permissions change.
