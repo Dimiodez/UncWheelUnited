@@ -51,4 +51,18 @@ export type Session = {
   positionLimitsEnabled: boolean;
   positionLimits: Record<"Any" | "Attacker" | "Midfield" | "Defense", number>;
   customWheels: CustomWheel[];
+  drafts?: Partial<Record<"captain" | "fantasy", DraftState>>;
+};
+
+export type DraftState = {
+  style: "snake" | "standard" | "random";
+  order: string[];
+  pickIndex: number;
+  selectedCaptainIds: string[];
+  whiteElephant: boolean;
+  stealLimit: 1 | 2;
+  holidayTheme: boolean;
+  steals: Record<string, number>;
+  complete: boolean;
+  message: string;
 };
