@@ -50,6 +50,7 @@ export default {
     const rawBody = await request.text();
     if (!signature || !timestamp || !await isDiscordRequest(rawBody, signature, timestamp, env.DISCORD_PUBLIC_KEY)) return new Response('Bad request signature.', { status: 401 });
     const interaction = JSON.parse(rawBody) as DiscordInteraction;
+    console.log(JSON.stringify({event:'discord_interaction_received',interactionId:interaction.id,type:interaction.type,command:interaction.data?.name??null}));
     if (interaction.type === 1) return json({ type: 1 });
     if(interaction.type===3&&interaction.data?.custom_id?.startsWith('recent-sheet:')){ctx.waitUntil(withBotOwner(env,interaction).then(ownerEnv=>publishRecentPreview(ownerEnv,interaction)));return json({type:5,data:{flags:64}});}
     if(interaction.type===2&&(['matches','playerstats'].includes(interaction.data?.name??'')||interaction.data?.name==='setup'&&['checkfeed','health','helpcenter','leaguesource','patches'].includes(interaction.data.options?.[0]?.name??''))){
@@ -57,8 +58,13 @@ export default {
         let result;
         try{result=await handleCommand(env,interaction,new EaClubsAdapter(env));}catch{result={data:{content:'The verified EA match feed is unavailable. No placeholder matches or stats were returned.'}};}
         const response=await fetch(`https://discord.com/api/v10/webhooks/${interaction.application_id}/${interaction.token}/messages/@original`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({...result.data,allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(10000)});
-        if(!response.ok)console.error(JSON.stringify({event:'ea_diagnostic_reply_failed',status:response.status}));
-      })());return json({type:5,data:{flags:64}});
+        if(!response.ok){
+          const detail=await response.json().catch(()=>null) as {code?:number}|null;
+          console.error(JSON.stringify({event:'ea_diagnostic_reply_failed',interactionId:interaction.id,status:response.status,discordCode:detail?.code??null}));
+        }else console.log(JSON.stringify({event:'ea_diagnostic_reply_completed',interactionId:interaction.id,command:interaction.data?.name}));
+      })().catch(error=>console.error(JSON.stringify({event:'ea_diagnostic_reply_failed',interactionId:interaction.id,errorType:error instanceof Error?error.name:'Unknown error'}))));
+      console.log(JSON.stringify({event:'discord_interaction_deferred',interactionId:interaction.id,command:interaction.data?.name}));
+      return json({type:5,data:{flags:64}});
     }
     if(interaction.type===2&&interaction.data?.name==='leaguestats'){
       const source=await resolveLeagueSource(env,interaction);
