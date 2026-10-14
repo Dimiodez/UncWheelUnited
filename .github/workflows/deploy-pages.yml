@@ -3,6 +3,9 @@ name: Deploy UWU to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'bot-feed/**'
+      - '.github/workflows/bot-friendlies.yml'
   workflow_dispatch:
 
 permissions:
