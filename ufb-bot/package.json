@@ -11,7 +11,7 @@
     "test": "node scripts/test-suite.mjs && node --test tests/friendlies.test.mjs",
     "test:unit": "vitest run",
     "build": "node scripts/build.mjs",
-    "deploy": "pnpm run check && pnpm test && pnpm run test:unit && pnpm run build && wrangler deploy --keep-vars",
+    "deploy": "node scripts/verify-git-source.mjs && pnpm run check && pnpm test && pnpm run test:unit && pnpm run build && wrangler deploy --keep-vars",
     "test:commands": "node scripts/test-published-commands.mjs",
     "db:migrate:local": "wrangler d1 migrations apply unc-futbol-bot --local"
   },

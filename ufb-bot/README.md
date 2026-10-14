@@ -19,7 +19,7 @@ GitHub CI repeats these checks and saves the bundle plus its SHA-256 manifest, t
 
 ## Production deployment
 
-Commit and push reviewed changes to Git first; verify CI. Deploy only the committed source using `pnpm run deploy` with authorized Cloudflare credentials. This preserves remotely managed variables and secrets. CI currently verifies builds; it does not automatically deploy. Production database migrations are deliberately separate and are not run by deployment.
+Commit and push reviewed changes to Git first; verify CI. Deploy only the committed source using `pnpm run deploy` with authorized Cloudflare credentials. Its source guard rejects an unexpected remote, non-main branch, unpushed commit or uncommitted bot changes. This preserves remotely managed variables and secrets. CI currently verifies builds; it does not automatically deploy. Production database migrations are deliberately separate and are not run by deployment.
 
 The Worker uses the existing D1 database, browser binding, stat-background assets, and minute cron in wrangler.jsonc. Never replace production secrets with local values. Do not commit credentials or live database exports.
 

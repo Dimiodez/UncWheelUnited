@@ -1,0 +1,11 @@
+import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const cwd=fileURLToPath(new URL('../../',import.meta.url));
+const git=(...args)=>execFileSync('git',args,{cwd,encoding:'utf8'}).trim();
+if(git('branch','--show-current')!=='main')throw Error('Production deploy requires main.');
+if(git('remote','get-url','origin')!=='https://github.com/Dimiodez/UncWheelUnited.git')throw Error('Unexpected canonical Git remote.');
+git('fetch','origin','main');
+const commit=git('rev-parse','HEAD');
+if(commit!==git('rev-parse','origin/main'))throw Error('Production source must match pushed origin/main.');
+if(git('status','--porcelain','--','ufb-bot','.github/workflows/bot-ci.yml'))throw Error('Commit and push bot changes before deployment.');
+console.log('Verified committed Git source: '+commit);
