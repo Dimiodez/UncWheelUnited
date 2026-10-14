@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS help_centers (
+ guild_id TEXT PRIMARY KEY,
+ channel_id TEXT NOT NULL,
+ state_json TEXT NOT NULL,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

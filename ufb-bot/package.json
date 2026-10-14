@@ -1,0 +1,28 @@
+{
+  "name": "unc-futbol-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {"node": ">=24"},
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "check": "tsc --noEmit",
+    "test": "node scripts/test-suite.mjs && node --test tests/friendlies.test.mjs",
+    "test:unit": "vitest run",
+    "build": "node scripts/build.mjs",
+    "deploy": "pnpm run check && pnpm test && pnpm run test:unit && pnpm run build && wrangler deploy --keep-vars",
+    "test:commands": "node scripts/test-published-commands.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply unc-futbol-bot --local"
+  },
+  "dependencies": {
+    "discord-interactions": "^4.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "@cloudflare/workers-types": "^5.20260914.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.38.0"
+  }
+}

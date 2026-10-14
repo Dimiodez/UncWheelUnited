@@ -1,0 +1,10 @@
+import {build} from 'esbuild';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+const root=fileURLToPath(new URL('../',import.meta.url));
+await build({absWorkingDir:root,entryPoints:['src/index.ts'],outfile:'dist/index.js',bundle:true,format:'esm',platform:'browser',target:'es2022',external:['node:*','tty','util'],legalComments:'eof',sourcemap:false,keepNames:true});
+const sha256=createHash('sha256').update(fs.readFileSync(path.join(root,'dist/index.js'))).digest('hex');
+fs.writeFileSync(path.join(root,'dist/build.json'),JSON.stringify({sha256,entry:'src/index.ts'})+'\n');
+console.log(`Built Git source: ${sha256}`);

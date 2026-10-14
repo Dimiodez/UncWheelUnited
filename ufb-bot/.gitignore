@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.dev.vars
+*.log
+.wrangler/
+.wrangler-dryrun/
+backups/
+runtime/node_modules/
