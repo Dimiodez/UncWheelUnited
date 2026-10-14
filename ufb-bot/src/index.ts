@@ -1,3 +1,4 @@
+import {deliverDeferredReply} from './deferred-replies';
 import { handleCommand } from './commands';
 import { EaClubsAdapter } from './ea';
 import {friendlyFeed,pollWatchers,publishRecentPreview} from './match-watchers';
@@ -57,11 +58,7 @@ export default {
       ctx.waitUntil((async()=>{
         let result;
         try{result=await handleCommand(env,interaction,new EaClubsAdapter(env));}catch{result={data:{content:'The verified EA match feed is unavailable. No placeholder matches or stats were returned.'}};}
-        const response=await fetch(`https://discord.com/api/v10/webhooks/${interaction.application_id}/${interaction.token}/messages/@original`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({...result.data,allowed_mentions:{parse:[]}}),signal:AbortSignal.timeout(10000)});
-        if(!response.ok){
-          const detail=await response.json().catch(()=>null) as {code?:number}|null;
-          console.error(JSON.stringify({event:'ea_diagnostic_reply_failed',interactionId:interaction.id,status:response.status,discordCode:detail?.code??null}));
-        }else console.log(JSON.stringify({event:'ea_diagnostic_reply_completed',interactionId:interaction.id,command:interaction.data?.name}));
+        await deliverDeferredReply(interaction,result.data);
       })().catch(error=>console.error(JSON.stringify({event:'ea_diagnostic_reply_failed',interactionId:interaction.id,errorType:error instanceof Error?error.name:'Unknown error'}))));
       console.log(JSON.stringify({event:'discord_interaction_deferred',interactionId:interaction.id,command:interaction.data?.name}));
       return json({type:5,data:{flags:64}});
