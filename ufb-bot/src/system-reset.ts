@@ -35,6 +35,7 @@ async function resetCounts(env:Env,guild:string){
 
 export async function purgeGuild(env:Env,guild:string){
  await env.DB.batch([
+  env.DB.prepare('DELETE FROM position_signup_boards WHERE guild_id=?').bind(guild),
   env.DB.prepare('DELETE FROM schedule_reminders WHERE occurrence_id IN (SELECT o.id FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE s.guild_id=?)').bind(guild),
   env.DB.prepare('DELETE FROM schedule_responses WHERE occurrence_id IN (SELECT o.id FROM schedule_occurrences o JOIN schedule_series s ON s.id=o.series_id WHERE s.guild_id=?)').bind(guild),
   env.DB.prepare('DELETE FROM schedule_occurrences WHERE series_id IN (SELECT id FROM schedule_series WHERE guild_id=?)').bind(guild),
