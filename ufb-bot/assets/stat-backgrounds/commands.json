@@ -1215,5 +1215,18 @@
         ]
       }
     ]
-  }
-]
+  },
+  {
+    "name": "position",
+    "description": "Post a multi-position FC 27 Clubs signup in this channel",
+    "options": [
+      {
+        "name": "name",
+        "description": "Optional title for this position signup",
+        "type": 3,
+        "required": false,
+        "min_length": 3,
+        "max_length": 100
+      }
+    ]
+  }]

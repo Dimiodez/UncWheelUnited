@@ -15,6 +15,7 @@ import {botOwner,leagueStaff,teamManager,ufbAdministrator,withBotOwner} from './
 import {withStaffRoles,type StaffRoleSettings} from './staff-roles';
 import {infoReset} from './system-reset';
 import {scheduleEventCommand,scheduleRsvp,rsvpTimezoneAutocomplete} from './schedule-events';
+import {positionCommand,positionComponent} from './position-signups';
 import {availableSlug,requireGuild,scopedSlug} from './guild-scope';
 
 const option = (options: DiscordOption[] | undefined, name: string) => { const value = options?.find((item) => item.name === name)?.value; return typeof value === 'string' ? value.trim() : value === undefined ? '' : String(value); };
@@ -58,7 +59,7 @@ async function ufb(): Promise<InteractionResponse> {
     { name: '👤 User', value: '`/claim` · `/profile`' },
     { name: '🏟 Team', value: '`/register` · `/team` · `/linkclub` · `/roster`' },
     { name: '⚽ FC27', value: '`/matches` · `/gamestats` · `/automode` · `/playerstats`' },
-    { name: '🗓️ Attendance', value: '`/rsvp create` — one night or recurring, with optional reminders and a discussion thread · `/rsvp list` · `/rsvp cancel`' },
+    { name: '🗓️ Attendance', value: '`/rsvp create` — one night or recurring, with optional reminders and a discussion thread · `/rsvp list` · `/rsvp cancel` · `/position` — multi-position FC 27 signup' },
     { name: '🏆 League', value: '`/standings` · `/schedule` · `/leaguestats`' },
     { name: '📣 Recruiting', value: 'Free-agent and player-signing tools are in the workspace for later use.' },
     { name: '⚙️ Administrator', value: '`/setup create` · `/setup competitions` · `/setup panel` · `/info reset`' }
@@ -500,6 +501,7 @@ export async function handleCommand(env: Env, interaction: DiscordInteraction, e
   }
   if(interaction.type!==4){const result=await navigation(env,interaction,next=>handleCommand(env,next,ea));if(result)return result;}
   if(interaction.type===3&&interaction.data?.custom_id?.startsWith('info-reset:'))return infoReset(env,interaction);
+  if(interaction.type===3&&interaction.data?.custom_id?.startsWith('position:'))return positionComponent(env,interaction);
   if(interaction.type===3&&(interaction.data?.custom_id?.startsWith('schedule-rsvp:')||interaction.data?.custom_id?.startsWith('event-signup:')))return scheduleRsvp(env,interaction);
   if(interaction.type===2&&['recruit','recruiting'].includes(interaction.data?.name??'')){
     await expireFreeAgents(env);
@@ -569,6 +571,7 @@ export async function handleCommand(env: Env, interaction: DiscordInteraction, e
     case 'stats': return stats(env, interaction);
     case 'playerstats': return playerStats(env, interaction,ea);
     case 'matchnight': return matchnight(env, interaction);
+    case 'position': return positionCommand(env,interaction);
     case 'event':
     case 'rsvp': return scheduleEventCommand(env,interaction);
     case 'standings': return standings(env, interaction);
