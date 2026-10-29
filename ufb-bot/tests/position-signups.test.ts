@@ -9,7 +9,7 @@ import type {DiscordInteraction,Env} from '../src/types';
 function testEnv(){
  const sqlite=new DatabaseSync(':memory:');
  sqlite.exec('PRAGMA foreign_keys=ON');
- sqlite.exec(readFileSync(new URL('../migrations/0036_position_signups.sql',(import.meta as unknown as {url:string}).url),'utf8'));
+ for(const migration of ['0036_position_signups.sql','0037_position_signup_order.sql'])sqlite.exec(readFileSync(new URL(`../migrations/${migration}`,(import.meta as unknown as {url:string}).url),'utf8'));
  const prepare=(sql:string)=>(
   {bind(...values:unknown[]){const statement=sqlite.prepare(sql);return {
    run:async()=>{const result=statement.run(...values as []);return {meta:{changes:Number(result.changes),last_row_id:Number(result.lastInsertRowid)}};},
@@ -40,6 +40,24 @@ describe('/position signup boards',()=>{
   expect(sqlite.prepare('SELECT position FROM position_signup_selections WHERE board_id=? ORDER BY position').all(board.id).map((row:any)=>row.position)).toEqual(['CB','CM','LB','RW']);
   const rendered=await positionComponent(env,{...player,data:{custom_id:`position:select:${board.id}`,values:['LB','CB','CM','RW']}});
   expect(rendered.data!.embeds![0].fields!.some(field=>field.value.includes('multi-player'))).toBe(true);
+  sqlite.close();
+ });
+
+ it('shows numbered players left-to-right in signup order and preserves retained positions',async()=>{
+  const {env,sqlite}=testEnv();
+  await positionCommand(env,interaction('creator'));
+  const board=sqlite.prepare('SELECT id FROM position_signup_boards').get() as {id:number};
+  const choose=async(user:string,values:string[])=>{const input=interaction(user,3);input.data={custom_id:`position:select:${board.id}`,values};return positionComponent(env,input);};
+  const remove=async(user:string)=>{const input=interaction(user,3);input.data={custom_id:`position:remove:${board.id}`};return positionComponent(env,input);};
+  await choose('zeta',['ST']);await choose('alpha',['ST']);await choose('bravo',['ST']);
+  const retained=await choose('alpha',['ST','GK']);
+  const retainedLine=retained.data!.embeds![0].fields!.find(field=>field.name==='Forwards')!.value;
+  expect(retainedLine).toContain('**ST — 3:** 1. zeta · 2. alpha · 3. bravo');
+  await remove('alpha');
+  const readded=await choose('alpha',['ST']);
+  const readdedLine=readded.data!.embeds![0].fields!.find(field=>field.name==='Forwards')!.value;
+  expect(readdedLine).toContain('**ST — 3:** 1. zeta · 2. bravo · 3. alpha');
+  expect(sqlite.prepare("SELECT display_name FROM position_signup_selections WHERE position='ST' ORDER BY signup_order,rowid").all().map((row:any)=>row.display_name)).toEqual(['zeta','bravo','alpha']);
   sqlite.close();
  });
 
