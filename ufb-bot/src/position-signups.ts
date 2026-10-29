@@ -19,7 +19,7 @@ export const FC27_POSITIONS=[
 
 type Position=typeof FC27_POSITIONS[number]['value'];
 type Board={id:number;guild_id:string;channel_id:string;creator_id:string;title:string;active:number};
-type Selection={position:Position;display_name:string};
+type Selection={position:Position;display_name:string;signup_order:number};
 
 const positionSet=new Set<string>(FC27_POSITIONS.map(position=>position.value));
 const groups=[
@@ -34,19 +34,19 @@ const titleOption=(interaction:DiscordInteraction)=>String(interaction.data?.opt
 
 function positionLine(position:Position,rows:Selection[]):string{
  const names=rows.filter(row=>row.position===position).map(row=>clean(row.display_name,32));
- const shown=names.slice(0,8).join(', '),more=names.length>8?` … +${names.length-8} more`:'';
+ const shown=names.slice(0,8).map((name,index)=>`${index+1}. ${name}`).join(' · '),more=names.length>8?` … +${names.length-8} more`:'';
  return `**${position} — ${names.length}:** ${shown||'_Open_'}${more}`;
 }
 
 export function renderPositionBoard(board:Board,rows:Selection[]):NonNullable<InteractionResponse['data']>{
  const components=board.active?[{type:1,components:[{type:3,custom_id:`position:select:${board.id}`,placeholder:'Select every FC 27 position you can play',min_values:1,max_values:FC27_POSITIONS.length,options:FC27_POSITIONS.map(position=>({label:position.label,value:position.value}))}]},{type:1,components:[{type:2,style:2,label:'Remove my signup',custom_id:`position:remove:${board.id}`},{type:2,style:4,label:'Close signups',custom_id:`position:close:${board.id}`}]}]:[];
- return {allowed_mentions:{parse:[]},embeds:[{title:`⚽ ${clean(board.title,100)}${board.active?'':' — Closed'}`,description:'Choose every position you can play. Selecting again replaces your previous choices, so include the full set you want saved.',color:board.active?0x08bfea:0x777777,fields:groups.map(group=>({name:group.name,value:group.positions.map(position=>positionLine(position,rows)).join('\n'),inline:false}))}],components};
+ return {allowed_mentions:{parse:[]},embeds:[{title:`⚽ ${clean(board.title,100)}${board.active?'':' — Closed'}`,description:'Choose every position you can play. Players are numbered left-to-right in signup order for each position. Selecting again replaces your previous choices, so include the full set you want saved.',color:board.active?0x08bfea:0x777777,fields:groups.map(group=>({name:group.name,value:group.positions.map(position=>positionLine(position,rows)).join('\n'),inline:false}))}],components};
 }
 
 async function loadBoard(env:Env,guild:string,id:number):Promise<{board:Board;rows:Selection[]}|null>{
  const board=await env.DB.prepare('SELECT id,guild_id,channel_id,creator_id,title,active FROM position_signup_boards WHERE id=? AND guild_id=?').bind(id,guild).first<Board>();
  if(!board)return null;
- const rows=await env.DB.prepare('SELECT position,display_name FROM position_signup_selections WHERE board_id=? ORDER BY display_name COLLATE NOCASE,position').bind(id).all<Selection>();
+ const rows=await env.DB.prepare('SELECT position,display_name,signup_order FROM position_signup_selections WHERE board_id=? ORDER BY position,signup_order,rowid').bind(id).all<Selection>();
  return {board,rows:rows.results};
 }
 
@@ -76,10 +76,14 @@ export async function positionComponent(env:Env,interaction:DiscordInteraction):
   else{
    const values=[...new Set(interaction.data?.values??[])];
    if(!values.length||values.length>FC27_POSITIONS.length||values.some(value=>!positionSet.has(value)))return message('Choose one or more valid FC 27 positions.',true);
-   const name=clean(user.global_name||user.username,48);
+   const positions=values as Position[],name=clean(user.global_name||user.username,48);
+   const existing=await env.DB.prepare('SELECT position,signup_order FROM position_signup_selections WHERE board_id=? AND discord_id=?').bind(id,user.id).all<{position:Position;signup_order:number}>();
+   const maxima=await env.DB.prepare('SELECT position,MAX(signup_order) AS signup_order FROM position_signup_selections WHERE board_id=? GROUP BY position').bind(id).all<{position:Position;signup_order:number}>();
+   const previous=new Map(existing.results.map(row=>[row.position,row.signup_order])),latest=new Map(maxima.results.map(row=>[row.position,row.signup_order]));
+   const signupOrder=(position:Position)=>{const retained=previous.get(position);if(retained!==undefined)return retained;const next=(latest.get(position)??0)+1;latest.set(position,next);return next;};
    await env.DB.batch([
     env.DB.prepare('DELETE FROM position_signup_selections WHERE board_id=? AND discord_id=?').bind(id,user.id),
-    ...values.map(position=>env.DB.prepare('INSERT INTO position_signup_selections (board_id,discord_id,display_name,position) VALUES (?,?,?,?)').bind(id,user.id,name,position))
+    ...positions.map(position=>env.DB.prepare('INSERT INTO position_signup_selections (board_id,discord_id,display_name,position,signup_order) VALUES (?,?,?,?,?)').bind(id,user.id,name,position,signupOrder(position)))
    ]);
   }
  }
