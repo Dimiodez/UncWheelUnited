@@ -1,6 +1,26 @@
-import {liveFeed, type ClubMatch, type LinkedTeam} from './match-watchers';
+import {normalizeFc27Matches, type MatchFeed, type ClubMatch} from './match-watchers';
 import type {Env} from './types';
 export {normalizeFc27Matches} from './match-watchers';
+
+// House clubs count regular club games only. A friendly outage must never block them.
+// League /matches, /gamestats and automode deliberately retain their separate friendly feed.
+export const houseClubFeed=(env:Env):MatchFeed=>async team=>{
+ if(env.EA_MATCHES_ENABLED!=='true')throw new Error('EA match feed unavailable');
+ const id=team.ea_club_id,platform=team.ea_platform||'common-gen5';
+ if(!/^\d+$/.test(id||'')||!['common-gen5','nx'].includes(platform))throw new Error('Invalid linked EA club');
+ if(!env.EA_API_BASE_URL)throw new Error('FC27 API relay unavailable');
+ const base=new URL(env.EA_API_BASE_URL);
+ if(base.protocol!=='https:')throw new Error('FC27 API relay must use HTTPS');
+ const url=new URL(base.toString().replace(/\/$/,'')+'/clubs/'+encodeURIComponent(id!)+'/matches');
+ url.searchParams.set('platform',platform);
+ url.searchParams.set('type','leagueMatch');
+ const response=await fetch(url,{redirect:'manual',headers:{accept:'application/json'},signal:AbortSignal.timeout(20000)});
+ if(!response.ok)throw new Error('House regular match feed returned '+response.status);
+ const matches=normalizeFc27Matches(await response.json());
+ if(matches.some(match=>!match.clubs.some(club=>club.id===id)))throw new Error('Unrelated house match');
+ const unique=new Map(matches.map(match=>[match.id,match]));
+ return [...unique.values()].sort((a,b)=>b.playedAt-a.playedAt);
+};
 
 export const SANDY_BUMS_ID='43521';
 export const MOUNTAINS_ID='96510';
@@ -45,14 +65,14 @@ export function houseClubStatements(db:D1Database,match:ClubMatch,clubId:string)
 }
 export const sandyBumsStatements=(db:D1Database,match:ClubMatch)=>houseClubStatements(db,match,SANDY_BUMS_ID);
 
-export async function syncHouseClub(env:Env,clubId:string,clubName:string,now=Date.now(),feed=liveFeed(env),manual=false){
+export async function syncHouseClub(env:Env,clubId:string,clubName:string,now=Date.now(),feed=houseClubFeed(env),manual=false){
  const lease=await env.DB.prepare(`UPDATE house_club_sync SET lease_until=?,last_attempt_at=?
   WHERE club_id=? AND lease_until<? AND (last_success_at IS NULL OR last_success_at<=?)
   AND (?=0 OR last_attempt_at IS NULL OR last_attempt_at<=?)`)
   .bind(now+LEASE_MS,now,clubId,now,now-(manual?120000:SYNC_INTERVAL_MS),manual?1:0,now-120000).run();
  if(!lease.meta.changes)return {skipped:true};
  try{
-  const team:LinkedTeam={id:0,name:clubName,manager_discord_id:'',ea_club_id:clubId,ea_platform:'common-gen5',ea_crest_url:null};
+  const team:Parameters<MatchFeed>[0]={id:0,name:clubName,manager_discord_id:'',ea_club_id:clubId,ea_platform:'common-gen5',ea_crest_url:null};
   const matches=await feed(team);
   for(const match of matches){const statements=houseClubStatements(env.DB,match,clubId);if(statements.length)await env.DB.batch(statements);}
   await env.DB.prepare('UPDATE house_club_sync SET last_success_at=?,lease_until=0,last_error=NULL WHERE club_id=?').bind(now,clubId).run();
@@ -62,14 +82,14 @@ export async function syncHouseClub(env:Env,clubId:string,clubName:string,now=Da
   throw error;
  }
 }
-export const syncSandyBums=(env:Env,now=Date.now(),feed=liveFeed(env))=>syncHouseClub(env,SANDY_BUMS_ID,'FC Sandy Bums',now,feed);
-export const syncMountains=(env:Env,now=Date.now(),feed=liveFeed(env))=>syncHouseClub(env,MOUNTAINS_ID,'FC Mountains',now,feed);
+export const syncSandyBums=(env:Env,now=Date.now(),feed=houseClubFeed(env))=>syncHouseClub(env,SANDY_BUMS_ID,'FC Sandy Bums',now,feed);
+export const syncMountains=(env:Env,now=Date.now(),feed=houseClubFeed(env))=>syncHouseClub(env,MOUNTAINS_ID,'FC Mountains',now,feed);
 
 export async function checkHouseClub(env:Env,slug:string){
  const club=slug==='fc-sandy-bums'?[SANDY_BUMS_ID,'FC Sandy Bums']:slug==='fc-mountains'?[MOUNTAINS_ID,'FC Mountains']:null;
  if(!club)return Response.json({error:'Unknown house club.'},{status:404});
  try{
-  const result=await syncHouseClub(env,club[0],club[1],Date.now(),liveFeed(env),true);
+  const result=await syncHouseClub(env,club[0],club[1],Date.now(),houseClubFeed(env),true);
   return Response.json({checked:!result.skipped,message:result.skipped?'A check ran within the last two minutes or is already running. Showing the latest saved results.':'Match check complete. Results and player totals have been refreshed.'},{headers:{'cache-control':'no-store'}});
  }catch{return Response.json({error:'The EA match feed is temporarily unavailable. Saved stats have not been removed. Try again shortly.'},{status:502,headers:{'cache-control':'no-store'}});}
 }
