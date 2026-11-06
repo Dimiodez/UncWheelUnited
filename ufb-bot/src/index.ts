@@ -39,9 +39,9 @@ export default {
     const url = new URL(request.url);
     if(request.method==='POST'&&['/api/house-clubs/fc-sandy-bums','/api/house-clubs/fc-mountains'].includes(url.pathname))return checkHouseClub(env,url.pathname.split('/').pop()!);
     if(request.method==='GET'&&url.pathname==='/health'&&url.searchParams.get('check')==='friendly'){
-      try{const matches=await friendlyFeed({ea_club_id:'374656',ea_platform:'common-gen5'} as Parameters<typeof friendlyFeed>[0]);return json({service:'ufb',status:'ok',matchType:'friendlyMatch',club:'UFL Maykop',count:matches.length,refreshedAt:matches.refreshedAt,matchIds:matches.map(m=>m.id)});}catch{return json({service:'ufb',status:'unavailable',error:'EA friendly feed unavailable.'},503);}
+      try{const matches=await friendlyFeed({ea_club_id:'374656',ea_platform:'common-gen5'} as Parameters<typeof friendlyFeed>[0],env);return json({service:'ufb',status:'ok',matchType:'friendlyMatch',club:'UFL Maykop',count:matches.length,refreshedAt:matches.refreshedAt,source:matches.source,matchIds:matches.map(m=>m.id)});}catch{return json({service:'ufb',status:'unavailable',error:'EA friendly feed unavailable.'},503);}
     }
-    if (request.method === 'GET' && url.pathname === '/health') return json({ service: 'ufb', status: 'ok', environment: env.ENVIRONMENT,release:'20261014-friendlies2',liveMatchFeed:env.EA_MATCHES_ENABLED==='true'&&!!(env.EA_MATCH_FEED_URL||env.EA_API_BASE_URL)?'configured':'disabled',matchTypes:['friendlyMatch','leagueMatch','playoffMatch'] });
+    if (request.method === 'GET' && url.pathname === '/health') return json({ service: 'ufb', status: 'ok', environment: env.ENVIRONMENT,release:'20261106-hosted-friendly1',liveMatchFeed:env.EA_MATCHES_ENABLED==='true'&&!!(env.EA_MATCH_FEED_URL||env.EA_API_BASE_URL)?'configured':'disabled',matchTypes:['friendlyMatch','leagueMatch','playoffMatch'] });
     if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-sandy-bums') return sandyBumsArchive(env,url.searchParams.get('month')??'all',url.searchParams.get('match')??'');
     if (request.method === 'GET' && url.pathname === '/api/house-clubs/fc-mountains') return mountainsArchive(env,url.searchParams.get('month')??'all',url.searchParams.get('match')??'');
     if (request.method !== 'POST' || url.pathname !== '/interactions') return new Response('Not found', { status: 404 });
@@ -57,7 +57,7 @@ export default {
     if(interaction.type===2&&(['matches','playerstats'].includes(interaction.data?.name??'')||interaction.data?.name==='setup'&&['checkfeed','health','helpcenter','leaguesource','patches'].includes(interaction.data.options?.[0]?.name??''))){
       ctx.waitUntil((async()=>{
         let result;
-        try{result=await handleCommand(env,interaction,new EaClubsAdapter(env));}catch{result={data:{content:'The verified EA match feed is unavailable. No placeholder matches or stats were returned.'}};}
+        try{result=await handleCommand(env,interaction,new EaClubsAdapter(env));}catch(error){result={data:{content:error instanceof Error&&error.message.startsWith('EA friendly feed is refreshing.')?error.message:'The verified EA match feed is unavailable. No placeholder matches or stats were returned.'}};}
         await deliverDeferredReply(interaction,result.data);
       })().catch(error=>console.error(JSON.stringify({event:'ea_diagnostic_reply_failed',interactionId:interaction.id,errorType:error instanceof Error?error.name:'Unknown error'}))));
       console.log(JSON.stringify({event:'discord_interaction_deferred',interactionId:interaction.id,command:interaction.data?.name}));

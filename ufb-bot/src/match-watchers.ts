@@ -107,23 +107,31 @@ export function normalizeFc27Matches(raw:unknown):ClubMatch[]{
  }));
 }
 
-export async function friendlyFeed(t:LinkedTeam){
+export async function friendlyFeed(t:LinkedTeam,env?:Env){
  const id=t.ea_club_id,platform=t.ea_platform||'common-gen5';
  if(!/^\d+$/.test(id||'')||!['common-gen5','nx'].includes(platform))throw Error('Invalid linked EA club');
+ if(platform==='common-gen5'&&env?.EA_FEED_SERVICE){
+  const feed=await env.EA_FEED_SERVICE.friendlyFeed({clubId:id!,platform});
+  if(!feed.available)throw Error('EA friendly feed is refreshing. Please retry this command in about a minute.');
+  if(!Array.isArray(feed.matches)||!Number.isFinite(Date.parse(feed.fetchedAt||''))||Date.now()-Date.parse(feed.fetchedAt!)>15*60000||Date.parse(feed.fetchedAt!)>Date.now()+60000)throw Error('Hosted EA friendly feed is stale or invalid.');
+  const matches=normalizeFc27Matches(feed.matches) as ClubMatch[] & {refreshedAt:string;source?:string};
+  if(matches.some(m=>!m.clubs.some(c=>c.id===id)))throw Error('Unrelated friendly match');
+  matches.refreshedAt=feed.fetchedAt!;matches.source=feed.source;return matches;
+ }
  const url=new URL('https://proclubs.ea.com/api/fc/clubs/matches');
  for(const [key,value]of Object.entries({platform,clubIds:id!,matchType:'friendlyMatch',maxResultCount:'10'}))url.searchParams.set(key,value);
  const response=await fetch(url,{redirect:'manual',headers:{accept:'application/json','accept-language':'en-US,en;q=0.9','sec-fetch-site':'same-origin','sec-ch-ua':'"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"','user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'},signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw Error('EA friendly feed returned '+response.status);
- const matches=normalizeFc27Matches(await response.json()||[]) as ClubMatch[] & {refreshedAt:string};
+ const matches=normalizeFc27Matches(await response.json()||[]) as ClubMatch[] & {refreshedAt:string;source?:string};
  if(matches.some(m=>!m.clubs.some(c=>c.id===id)))throw Error('Unrelated friendly match');
- matches.refreshedAt=new Date().toISOString();
- return matches;
+ matches.refreshedAt=new Date().toISOString();matches.source='EA direct';return matches;
 }
+
 async function relayFeed(e:Env,t:LinkedTeam){
  if(!e.EA_API_BASE_URL)throw new Error('FC27 API relay unavailable');
  const base=new URL(e.EA_API_BASE_URL);if(base.protocol!=='https:')throw new Error('FC27 API relay must use HTTPS');
  const root=base.toString().replace(/\/$/,'');
- const responses=await Promise.allSettled(['friendlyMatch','leagueMatch','playoffMatch'].map(async type=>{if(type==='friendlyMatch')return friendlyFeed(t);const url=new URL(`${root}/clubs/${encodeURIComponent(t.ea_club_id??'')}/matches`);url.searchParams.set('platform',t.ea_platform??'common-gen5');url.searchParams.set('type',type);const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error(`FC27 ${type} feed returned ${response.status}`);return normalizeFc27Matches(await response.json());}));
+ const responses=await Promise.allSettled(['friendlyMatch','leagueMatch','playoffMatch'].map(async type=>{if(type==='friendlyMatch')return friendlyFeed(t,e);const url=new URL(`${root}/clubs/${encodeURIComponent(t.ea_club_id??'')}/matches`);url.searchParams.set('platform',t.ea_platform??'common-gen5');url.searchParams.set('type',type);const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(20000)});if(!response.ok)throw new Error(`FC27 ${type} feed returned ${response.status}`);return normalizeFc27Matches(await response.json());}));
  if(responses[0].status==='rejected')throw responses[0].reason;
  const available=responses.filter((result):result is PromiseFulfilledResult<ClubMatch[]>=>result.status==='fulfilled');
  if(!available.length)throw new Error('FC27 match feed unavailable');

@@ -15,6 +15,7 @@ export interface Env {
   BROWSER: Fetcher;
   ASSETS: Fetcher;
   EA_MATCHES_ENABLED?: string;
+  EA_FEED_SERVICE?: {friendlyFeed(request:{clubId:string;platform:string}):Promise<{available:boolean;matches:unknown[];fetchedAt?:string;source?:string}>};
   EA_MATCH_FEED_URL?: string;
   EA_API_BASE_URL?: string;
 }

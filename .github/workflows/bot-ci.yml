@@ -1,7 +1,7 @@
 name: Verify UFL bot
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/ufb-*']
     paths: ['ufb-bot/**', '.github/workflows/bot-ci.yml']
   pull_request:
     paths: ['ufb-bot/**', '.github/workflows/bot-ci.yml']
@@ -32,4 +32,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ufl-bot-${{ github.sha }}
-          path: ufb-bot/dist/
+          path: |
+            ufb-bot/dist/
+            ufb-bot/wrangler.jsonc
+            ufb-bot/assets/stat-backgrounds/

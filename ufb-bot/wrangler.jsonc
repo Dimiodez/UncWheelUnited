@@ -5,6 +5,7 @@
   "compatibility_date":"2026-09-19",
   "compatibility_flags":["nodejs_compat"],
   "browser":{"binding":"BROWSER"},
+  "services":[{"binding":"EA_FEED_SERVICE","service":"ufl-preview-league-collector","entrypoint":"EaFeedService"}],
   "assets":{"directory":"assets/stat-backgrounds","binding":"ASSETS","run_worker_first":true},
   "observability":{"enabled":true,"head_sampling_rate":1},
   "triggers":{"crons":["* * * * *"]},

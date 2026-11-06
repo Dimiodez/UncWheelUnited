@@ -30,3 +30,9 @@ UFL league matches are friendlies. Friendly matches are fetched from EA's public
 Read-only probes: `/health` and `/health?check=friendly` (fixed Maykop test club). Regression tests cover friendlies, match lookup, automode, deduplication and upstream failures without live Discord traffic.
 
 Source recovery on 2026-10-14 was verified against the pre-fix live Worker: the original TypeScript backup produced a byte-identical normalized bundle. Existing event, image-upload, RSVP, help-center and house-team functionality is retained; friendlies and health diagnostics are the intentional application changes.
+
+## Shared hosted friendly route
+
+Production config binds EA_FEED_SERVICE to the private EaFeedService entrypoint of ufl-preview-league-collector. Common-gen5 friendlies use this route first because EA can block direct Cloudflare requests. The coordinator uses the existing hosted EA workflow and credential, shared by both league collectors. Bot requests remain eligible for refresh for thirty minutes after use; active automode requests extend that window. A cold feed returns a readable refresh message instead of empty or invented results. NX and deployments without the binding retain the direct route.
+
+The bot still merges league/playoff records and deduplicates all match IDs. Health's friendly check now exercises the actual configured route. Source stays in this repository; the RPC transport source remains in Dimiodez/UncFutbolLeague.com. Neither repository alone implies automatic deployment: bot CI verifies and packages source/config/assets, while production deployment still requires the verified artifact.

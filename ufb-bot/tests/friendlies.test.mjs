@@ -45,3 +45,22 @@ test('matches and automode use friendlies, deduplicate and retain required EA he
     failed=true;await assert.rejects(liveFeed(env)(team),/friendly feed returned 503/);
   }finally{globalThis.fetch=original;db.close();}
 });
+
+test('bot uses private hosted friendly RPC when Cloudflare EA is blocked, without losing other match types',async()=>{
+ const original=globalThis.fetch,team={ea_club_id:'374656',ea_platform:'common-gen5'},calls=[];
+ const env={EA_MATCHES_ENABLED:'true',EA_API_BASE_URL:'https://relay.example/api',EA_FEED_SERVICE:{async friendlyFeed(input){calls.push(input);return {available:true,matches:fixture,fetchedAt:new Date().toISOString(),source:'EA direct via GitHub-hosted transport'};}}};
+ globalThis.fetch=async input=>{const url=new URL(input);if(url.hostname==='proclubs.ea.com')throw Error('Blocked direct EA must not be called');if(url.hostname==='relay.example')return Response.json(fixture);throw Error('Unexpected request');};
+ try{const feed=await liveFeed(env)(team);assert.equal(feed.length,1);assert.equal(feed[0].id,'99442561670221');assert.deepEqual(calls,[{clubId:'374656',platform:'common-gen5'}]);}finally{globalThis.fetch=original;}
+});
+test('warming or stale hosted feed never becomes a successful empty match list',async()=>{
+ const original=globalThis.fetch,team={ea_club_id:'374656',ea_platform:'common-gen5'};
+ globalThis.fetch=async()=>Response.json([]);
+ try{
+  const env={EA_MATCHES_ENABLED:'true',EA_API_BASE_URL:'https://relay.example/api',EA_FEED_SERVICE:{async friendlyFeed(){return {available:false,matches:[]};}}};
+  await assert.rejects(()=>liveFeed(env)(team),/refreshing/);
+  env.EA_FEED_SERVICE.friendlyFeed=async()=>({available:true,matches:fixture,fetchedAt:new Date(Date.now()-16*60000).toISOString()});
+  await assert.rejects(()=>liveFeed(env)(team),/stale or invalid/);
+  env.EA_FEED_SERVICE.friendlyFeed=async()=>({available:true,matches:[{...fixture[0],clubs:{'111':fixture[0].clubs['374656'],'222':fixture[0].clubs['412322']}}],fetchedAt:new Date().toISOString()});
+  await assert.rejects(()=>liveFeed(env)(team),/Unrelated/);
+ }finally{globalThis.fetch=original;}
+});
