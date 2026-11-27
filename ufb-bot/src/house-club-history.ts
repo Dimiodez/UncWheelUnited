@@ -2,8 +2,8 @@ import {normalizeFc27Matches, type MatchFeed, type ClubMatch} from './match-watc
 import type {Env} from './types';
 export {normalizeFc27Matches} from './match-watchers';
 
-// House clubs count regular club games only. A friendly outage must never block them.
-// League /matches, /gamestats and automode deliberately retain their separate friendly feed.
+// House clubs include league and playoff games. Friendlies stay excluded.
+// League /matches, /gamestats and automode retain their separate friendly feed.
 export const houseClubFeed=(env:Env):MatchFeed=>async team=>{
  if(env.EA_MATCHES_ENABLED!=='true')throw new Error('EA match feed unavailable');
  const id=team.ea_club_id,platform=team.ea_platform||'common-gen5';
@@ -11,20 +11,23 @@ export const houseClubFeed=(env:Env):MatchFeed=>async team=>{
  if(!env.EA_API_BASE_URL)throw new Error('FC27 API relay unavailable');
  const base=new URL(env.EA_API_BASE_URL);
  if(base.protocol!=='https:')throw new Error('FC27 API relay must use HTTPS');
- const url=new URL(base.toString().replace(/\/$/,'')+'/clubs/'+encodeURIComponent(id!)+'/matches');
- url.searchParams.set('platform',platform);
- url.searchParams.set('type','leagueMatch');
- const response=await fetch(url,{redirect:'manual',headers:{accept:'application/json'},signal:AbortSignal.timeout(20000)});
- if(!response.ok)throw new Error('House regular match feed returned '+response.status);
- const matches=normalizeFc27Matches(await response.json());
- if(matches.some(match=>!match.clubs.some(club=>club.id===id)))throw new Error('Unrelated house match');
- const unique=new Map(matches.map(match=>[match.id,match]));
+ const feeds=await Promise.all(['leagueMatch','playoffMatch'].map(async type=>{
+  const url=new URL(base.toString().replace(/\/$/,'')+'/clubs/'+encodeURIComponent(id!)+'/matches');
+  url.searchParams.set('platform',platform);
+  url.searchParams.set('type',type);
+  const response=await fetch(url,{redirect:'manual',headers:{accept:'application/json'},signal:AbortSignal.timeout(20000)});
+  if(!response.ok)throw new Error('House '+type+' feed returned '+response.status);
+  const matches=normalizeFc27Matches(await response.json());
+  if(matches.some(match=>!match.clubs.some(club=>club.id===id)))throw new Error('Unrelated house match');
+  return matches;
+ }));
+ const unique=new Map(feeds.flat().map(match=>[match.id,match]));
  return [...unique.values()].sort((a,b)=>b.playedAt-a.playedAt);
 };
 
 export const SANDY_BUMS_ID='43521';
 export const MOUNTAINS_ID='96510';
-const SYNC_INTERVAL_MS=30*60*1000;
+const SYNC_INTERVAL_MS=5*60*1000;
 const LEASE_MS=3*60*1000;
 const monthFormatter=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',year:'numeric',month:'2-digit'});
 

@@ -2,8 +2,8 @@
 import {readFileSync} from 'node:fs';
 // @ts-expect-error Node types are supplied by the test runtime, not the Worker build.
 import {DatabaseSync} from 'node:sqlite';
-import {describe,expect,it} from 'vitest';
-import {centralMonth,mountainsArchive,sandyBumsArchive,syncMountains,syncSandyBums,syncHouseClub} from '../src/house-club-history';
+import {afterEach,describe,expect,it,vi} from 'vitest';
+import {centralMonth,mountainsArchive,sandyBumsArchive,syncMountains,syncSandyBums,syncHouseClub,houseClubFeed} from '../src/house-club-history';
 import type {ClubMatch} from '../src/match-watchers';
 import type {Env} from '../src/types';
 
@@ -43,7 +43,7 @@ describe('FC Sandy Bums historical archive',()=>{
   expect(await syncHouseClub(env,'43521','FC Sandy Bums',now+122000,feed,true)).toMatchObject({skipped:true});
   expect(await syncMountains(env,now+122000,feed)).toMatchObject({skipped:false});
   expect(calls).toBe(3);
-  expect(await syncSandyBums(env,now+600000,feed)).toMatchObject({skipped:true});
+  expect(await syncSandyBums(env,now+300000,feed)).toMatchObject({skipped:true});
  });
  it('loads older matches directly and falls back to saved appearances without inventing stats',async()=>{
   const env={DB:testDatabase()} as Env;
@@ -122,5 +122,55 @@ describe('FC Sandy Bums historical archive',()=>{
   expect(mountains).toMatchObject({clubId:'96510'});
   expect(mountains.matches).toHaveLength(1);
   expect(mountains.players).toMatchObject([{latest_name:'Climber',goals:2}]);
+ });
+});
+
+afterEach(()=>vi.unstubAllGlobals());
+const relayMatch=(id:string,timestamp:number,clubId='43521')=>({
+ matchId:id,timestamp,clubs:{[clubId]:{clubName:'House club',score:2},'999':{clubName:'Opponents',score:1}},
+ players:{[clubId]:{one:{playername:'One',rating:'8.0',goals:'2',assists:'1',position:'midfielder'}}}
+});
+describe('house-team regular competition feeds',()=>{
+ it('includes playoffs and league games, deduplicates match IDs, sorts newest first, and never requests friendlies',async()=>{
+  const requests:URL[]=[];
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+   const url=new URL(String(input));requests.push(url);
+   return Response.json(url.searchParams.get('type')==='leagueMatch'?
+    [relayMatch('league',100),relayMatch('shared',200)]:
+    [relayMatch('playoff',300),relayMatch('shared',200)]);
+  });
+  const env={EA_MATCHES_ENABLED:'true',EA_API_BASE_URL:'https://relay.test/api'} as Env;
+  const games=await houseClubFeed(env)({id:0,name:'FC Sandy Bums',manager_discord_id:'',ea_club_id:'43521',ea_platform:'common-gen5',ea_crest_url:null});
+  expect(games.map(g=>g.id)).toEqual(['playoff','shared','league']);
+  expect(requests.map(u=>u.searchParams.get('type')).sort()).toEqual(['leagueMatch','playoffMatch']);
+  expect(requests.every(u=>u.pathname==='/api/clubs/43521/matches'&&u.searchParams.get('platform')==='common-gen5')).toBe(true);
+  expect(games[0].clubs.find(c=>c.id==='43521')?.players[0].stats.slice(1,5)).toEqual(['8.0','2','0','1']);
+ });
+ it('captures both house clubs on a five-minute interval and keeps repeat appearances unique',async()=>{
+  const env={DB:testDatabase(),EA_MATCHES_ENABLED:'true',EA_API_BASE_URL:'https://relay.test/api'} as Env;
+  const now=Date.parse('2026-11-27T17:00:00Z');let calls=0;
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>{
+   calls++;const url=new URL(String(input)),clubId=url.pathname.split('/')[3],type=url.searchParams.get('type')!;
+   return Response.json([relayMatch(clubId+'-'+type,Math.floor(now/1000),clubId)]);
+  });
+  expect(await syncSandyBums(env,now)).toMatchObject({matches:2});
+  expect(await syncMountains(env,now)).toMatchObject({matches:2});
+  expect(await syncSandyBums(env,now+299999)).toMatchObject({skipped:true});
+  expect(await syncSandyBums(env,now+300000)).toMatchObject({matches:2});
+  expect(calls).toBe(6);
+  const sandy=await(await sandyBumsArchive(env,'2026-11')).json() as {matches:unknown[];players:Array<{appearances:number}>};
+  const mountains=await(await mountainsArchive(env,'2026-11')).json() as {matches:unknown[];players:Array<{appearances:number}>};
+  expect(sandy.matches).toHaveLength(2);expect(sandy.players[0].appearances).toBe(2);
+  expect(mountains.matches).toHaveLength(2);expect(mountains.players[0].appearances).toBe(2);
+ });
+ it('does not mark a partial league-only check successful when the playoff feed fails',async()=>{
+  const env={DB:testDatabase(),EA_MATCHES_ENABLED:'true',EA_API_BASE_URL:'https://relay.test/api'} as Env;
+  const now=Date.parse('2026-11-27T17:00:00Z');
+  await syncSandyBums(env,now,async()=>[match('saved',now,[{id:'one',name:'One',goals:2,assists:1,rating:'8.0'}])]);
+  vi.stubGlobal('fetch',async(input:RequestInfo|URL)=>new URL(String(input)).searchParams.get('type')==='playoffMatch'?
+   new Response('',{status:503}):Response.json([relayMatch('new-league',Math.floor(now/1000))]));
+  await expect(syncSandyBums(env,now+300000)).rejects.toThrow(/playoffMatch.*503/);
+  const data=await(await sandyBumsArchive(env,'2026-11')).json() as {matches:Array<{match_id:string}>;syncDelayed:boolean;lastSyncedAt:number};
+  expect(data.matches.map(m=>m.match_id)).toEqual(['saved']);expect(data.syncDelayed).toBe(true);expect(data.lastSyncedAt).toBe(now);
  });
 });
