@@ -11,14 +11,15 @@ describe('house regular-game feed isolation',()=>{
   const calls:string[]=[];
   vi.stubGlobal('fetch',vi.fn(async(input:RequestInfo|URL)=>{
    const url=new URL(String(input));calls.push(String(url));
-   if(url.hostname!=='relay.example'||url.searchParams.get('type')!=='leagueMatch')return new Response('Forbidden',{status:403});
+   if(url.hostname!=='relay.example'||!['leagueMatch','playoffMatch'].includes(url.searchParams.get('type')||''))return new Response('Forbidden',{status:403});
    return Response.json([fixture(),fixture()]);
   }));
   const result=await houseClubFeed(env)(team);
   expect(result.map(match=>match.id)).toEqual(['regular']);
-  expect(calls).toHaveLength(1);
+  expect(calls).toHaveLength(2);
+  expect(calls.map(value=>new URL(value).searchParams.get('type')).sort()).toEqual(['leagueMatch','playoffMatch']);
   expect(calls[0]).toContain('/api/clubs/43521/matches?');
-  expect(calls[0]).not.toContain('friendlyMatch');
+  expect(calls.every(value=>!value.includes('friendlyMatch'))).toBe(true);
  });
  it('supports Mountains through the same regular-game path',async()=>{
   const game=fixture();game.clubs={'96510':{goals:'2',details:{name:'FC Mountains'}},'999':{goals:'1',details:{name:'Opponent'}}} as unknown as typeof game.clubs;
@@ -27,7 +28,7 @@ describe('house regular-game feed isolation',()=>{
  });
  it('fails explicitly on a regular-feed outage or unrelated club',async()=>{
   vi.stubGlobal('fetch',vi.fn(async()=>new Response('Unavailable',{status:503})));
-  await expect(houseClubFeed(env)(team)).rejects.toThrow('regular match feed returned 503');
+  await expect(houseClubFeed(env)(team)).rejects.toThrow('House leagueMatch feed returned 503');
   vi.stubGlobal('fetch',vi.fn(async()=>Response.json([fixture()])));
   await expect(houseClubFeed(env)({...team,ea_club_id:'123'})).rejects.toThrow('Unrelated house match');
  });
