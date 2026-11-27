@@ -36,3 +36,10 @@ Source recovery on 2026-10-14 was verified against the pre-fix live Worker: the 
 Production config binds EA_FEED_SERVICE to the private EaFeedService entrypoint of ufl-preview-league-collector. Common-gen5 friendlies use this route first because EA can block direct Cloudflare requests. The coordinator uses the existing hosted EA workflow and credential, shared by both league collectors. Bot requests remain eligible for refresh for thirty minutes after use; active automode requests extend that window. A cold feed returns a readable refresh message instead of empty or invented results. NX and deployments without the binding retain the direct route.
 
 The bot still merges league/playoff records and deduplicates all match IDs. Health's friendly check now exercises the actual configured route. Source stays in this repository; the RPC transport source remains in Dimiodez/UncFutbolLeague.com. Neither repository alone implies automatic deployment: bot CI verifies and packages source/config/assets, while production deployment still requires the verified artifact.
+
+
+## House-team league and playoff coverage (November 27, 2026)
+
+Sandy Bums and Mountains archive both leagueMatch and playoffMatch games. Friendlies remain excluded from house-team totals. The house sync checks each club at five-minute intervals using the existing minute timer; the manual checker retains its shared two-minute cooldown. Both category reads must succeed before a check is reported successful, and saved matches/appearances are deduplicated by their existing IDs.
+
+The earlier league-only route missed six Sandy Bums playoff games that EA still exposed on November 27. Recovery uses the real EA match/player sheets, preserves match IDs and Central-time dates, and upserts the existing archive without deleting past records. House archive changes do not alter Discord league friendly coverage, /matches, /gamestats, automode, registrations, roles or deployment bindings.
